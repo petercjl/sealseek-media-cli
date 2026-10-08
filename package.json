@@ -1,6 +1,6 @@
 {
   "name": "@petercjl/sealseek-media-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Explicitly selected SealSeek desktop media generation for Codex and WorkBuddy.",
   "type": "module",
   "bin": {
@@ -22,7 +22,9 @@
     "url": "git+https://github.com/petercjl/sealseek-media-cli.git"
   },
   "homepage": "https://github.com/petercjl/sealseek-media-cli#readme",
-  "bugs": {"url": "https://github.com/petercjl/sealseek-media-cli/issues"},
+  "bugs": {
+    "url": "https://github.com/petercjl/sealseek-media-cli/issues"
+  },
   "scripts": {
     "test": "node --test",
     "check": "node --check bin/sealseek-media.mjs && node --test"
