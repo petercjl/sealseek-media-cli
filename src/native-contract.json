@@ -249,6 +249,31 @@
         }
       },
       "description": "单条文字编辑项"
+    },
+    "AssetValidateParam": {
+      "required": [
+        "assetType",
+        "url"
+      ],
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "待检测素材的 OSS URL（图片或视频）",
+          "example": "https://oss.sealseek.cn/images/avatar.jpg"
+        },
+        "assetType": {
+          "type": "string",
+          "description": "素材类型：Image / Video / Audio",
+          "example": "Image"
+        },
+        "name": {
+          "type": "string",
+          "description": "素材名称，用于管理检索",
+          "example": "正面全身照"
+        }
+      },
+      "description": "素材合规检测请求参数"
     }
   },
   "policy": "Schemas narrowed to package model allowlist and exposed inputs."

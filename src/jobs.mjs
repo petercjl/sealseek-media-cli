@@ -25,7 +25,7 @@ export async function getJob(id) {
   return job;
 }
 export function summary(job) {
-  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, transport:job.request.transport||'legacy-mcp',remote_task_id:job.remote?.remote_task_id||null,canvas_id:job.remote?.canvasId||null,model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
+  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, transport:job.request.transport||'legacy-mcp',remote_task_id:job.remote?.remote_task_id||null,canvas_id:job.remote?.canvasId||null,model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, reference_reviews:job.reference_reviews||[], artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
 }
 export async function submit(request, options) {
   requireValue(options.submit === true, 'SUBMIT_REQUIRED', 'Real generation requires --submit.');
@@ -56,6 +56,8 @@ export async function worker(id) {
   try {
     connection = await connect(job.configOptions);
     connection.traceId=job.id;
+    connection.onPreparedArguments=async args=>{job.executed_arguments=args;await replaceJob(p,job);};
+    connection.onReferenceReview=async review=>{job.reference_reviews||=[];const i=job.reference_reviews.findIndex(v=>v.role===review.role&&v.index===review.index);if(i<0)job.reference_reviews.push(review);else job.reference_reviews[i]=review;await replaceJob(p,job);};
     connection.onContext=async context=>{job.remote=context;await replaceJob(p,job);};
     connection.onSubmitted=async remote=>{job.remote=remote;await replaceJob(p,job);};
     job.result = job.resume_only?generationResult([await pollTask(connection.cfg,job.remote.remote_task_id,{timeout:job.timeout*1000})],job.request):await execute(connection, job.request, job.timeout*1000);

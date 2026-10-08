@@ -140,7 +140,7 @@ async function main(argv) {
     const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
+    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
     return out(await submit(request,options));
   }
   if (command==='image' && action==='upload') {

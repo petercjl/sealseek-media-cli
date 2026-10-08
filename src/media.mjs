@@ -4,9 +4,11 @@ import { requireValue, MediaError, secureUrl, hash } from './core.mjs';
 import { toolFor, validateArguments, call,request,API,authenticatedFetch,generationPayload,validateNativeInput } from './canvas.mjs';
 import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
+import {assetUri,reviewReference,REVIEW_POLICY} from './asset-review.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
 export async function reference(value,kind='image') {
+  if(assetUri(value)){requireValue(kind==='image','FEATURE_UNSUPPORTED','Asset URI inputs are supported for video image references.');return {url:value,asset:true};}
   if (/^https?:\/\//i.test(value)) return { url: secureUrl(value).href };
   const file = path.resolve(value), stat = await fs.stat(file).catch(() => null);
   requireValue(stat?.isFile() && stat.size > 0 && stat.size <= (kind==='image'?30:200) * 1024 * 1024, 'INVALID_REFERENCE', 'Reference file is missing, empty, or exceeds the local upload limit.');
@@ -57,6 +59,7 @@ export async function prepare(kind, options, tools, catalog) {
     args.video_options=validateVideoOptions(extra,options,args.duration);
   }
   const refs = await Promise.all((options.reference || []).map(v=>reference(v)));
+  requireValue(kind==='video'||!refs.some(r=>r.asset),'FEATURE_UNSUPPORTED','Asset URI references are supported for video generation only.');
   if (refs.length) args.reference_images = refs.map(r => r.url || 'https://reference.invalid/pending-upload.png');
   const first = options.first ? await reference(options.first) : null, last = options.last ? await reference(options.last) : null;
   requireValue(kind === 'video' || (!first && !last), 'FEATURE_UNSUPPORTED', 'First and last frames are video inputs.');
@@ -70,7 +73,7 @@ export async function prepare(kind, options, tools, catalog) {
   const tool = toolFor(tools, `generate_${kind}`); validateArguments(tool, args);
   generationPayload(kind,args,{canvasId:'dry-run',traceId:'dry-run'});
 
-  return { kind, transport:'infinite-canvas',tool: tool.name, args, refs, first, last,videoRefs,audioRef,model_contract:contract, output: options.output ? path.resolve(options.output) : null };
+  return { kind, transport:'infinite-canvas',tool: tool.name, args, refs, first, last,videoRefs,audioRef,model_contract:contract,...(kind==='video'?{reference_review:REVIEW_POLICY}:{}), output: options.output ? path.resolve(options.output) : null };
 }
 export async function upload(connection, ref) {
   if (ref.url) return ref.url;
@@ -115,12 +118,14 @@ export async function download(urls, kind, directory, id) {
 export async function execute(connection, request, timeout) {
   assertModelAllowed(request.args.model,request.kind);
   const args = { ...request.args };
-  if (request.refs.length) args.reference_images = await Promise.all(request.refs.map(r => upload(connection,r)));
-  if (request.first) args.first_frame_image = await upload(connection, request.first);
-  if (request.last) args.last_frame_image = await upload(connection, request.last);
+  const resolve=async(ref,role,index=0)=>request.kind==='video'?reviewReference(connection,ref,{upload,role,index}):upload(connection,ref);
+  if (request.refs.length){args.reference_images=[];for(const [i,ref] of request.refs.entries())args.reference_images.push(await resolve(ref,'reference',i));}
+  if (request.first) args.first_frame_image = await resolve(request.first,'first');
+  if (request.last) args.last_frame_image = await resolve(request.last,'last');
   if(request.videoRefs?.length)args.reference_videos=await Promise.all(request.videoRefs.map(r=>upload(connection,r)));
   if(request.audioRef)args.reference_audio=await upload(connection,request.audioRef);
   connection.operation=request.operation;connection.editParams=request.edit_params;
+  await connection.onPreparedArguments?.(args);
   const values = await call(connection, request.tool, args, timeout);
   return generationResult(values,request);
 }

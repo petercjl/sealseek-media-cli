@@ -71,3 +71,7 @@ Explicit pixel size is rejected: a real native request for 1024x1536 returned 20
 
 
 Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`) and GPT Image 2.5 Flare (`gpt-image-2.5-flare`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). Select alternatives explicitly with `--model`; there is no automatic model fallback. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. Dedicated quick editing and text replacement use Nano Banana Pro.
+
+## Automatic video reference preparation
+
+Pass ordinary reference images with `--reference` (or supported first/last-frame inputs). Before submitting a Seedance video, the CLI automatically uploads local images, invokes Infinite Canvas person/multiple-face detection and asset review, waits for approval, and uses the approved material URI. No extra command or user parameter is required. Unchanged references reuse privately cached, provider-verified materials. Review failure stops generation and is shown in task diagnostics. Dry-run does not upload or review.

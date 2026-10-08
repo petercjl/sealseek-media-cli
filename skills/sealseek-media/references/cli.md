@@ -21,7 +21,7 @@ sealseek-media task wait TASK_UUID --timeout 30 --json
 sealseek-media task download TASK_UUID --output ./recovered-media --json
 ```
 
-Repeat `--reference` for ordered HTTPS image URLs or local PNG/JPEG/WebP/GIF. Video accepts `--first` and `--last` image references. The worker uploads files through the Infinite Canvas multipart endpoint outside model context. Local inputs are rehashed before upload. Dry-run performs no upload/generation.
+Repeat `--reference` for ordered HTTPS image URLs or local PNG/JPEG/WebP/GIF. Video accepts `--first` and `--last` image references. The worker uploads files through the Infinite Canvas multipart endpoint outside model context. Local inputs are rehashed before upload. Dry-run performs no upload, reference review or generation.
 
 Image count is 1–4. Resolution, ratio, duration and reference limits vary by model. Query `models show ID --live --json`; see [model parameters](models.md) for the complete current model catalog and transport gaps. The CLI refreshes this catalog during preparation and validates choices before uploading or submitting. Provider acceptance remains separate from catalog/schema validation.
 
@@ -63,7 +63,7 @@ Pricing is read-only and does not generate; the provider may price unsupported c
 
 All service operations use Infinite Canvas REST; no MCP client is used. `task resume TASK_UUID --json` resumes polling of a saved remote task after a worker/authentication interruption. It never replays generation. A task with saved output URLs uses `task download` instead.
 
-Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and a listed `--quality-mode`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
+Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and model-specific `--video-options`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
 
 ```bash
 sealseek-media image edit --image ./photo.png --model nano-banana-pro --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
@@ -88,3 +88,11 @@ Multi-audio references and image reference role/description fields are not expos
 ## Defaults and model permission
 
 `--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro` and `gpt-image-2.5-flare`; video alternative is `doubao-seedance-2-0`. Alternatives are explicit selections; no automatic fallback. Model discovery, estimates, image editing and background generation all enforce the package allowlist.
+
+## Automatic video reference review
+
+Users continue to pass `--reference`, `--first` and `--last` normally. For both Seedance models, the worker sends image inputs through the Infinite Canvas combined person/multiple-face detection and automatic asset review. There is no separate face-detection decision for the Agent. Review succeeds only at `Active` with a usable asset identity; the video payload uses `asset://<assetId>`. Text-only video and image generation do not use this preflight. Existing approved asset URIs may also be supplied as video image inputs and are checked against the provider.
+
+Private cached review results are scoped to the service and current authentication, keyed by local content hash or URL, and rechecked before reuse. This avoids uploading and registering the same unchanged local image again. Local contents are rehashed even on cache hits. The provider may impose a material-library quota; the CLI reports it and preserves existing assets.
+
+`task get/wait/diagnose` includes `reference_reviews` with role, index, review status and asset identity. Diagnostics retain the actual submitted arguments. `Processing` falls back to bounded status polling; failed review, invalid response, unresolved submission or review timeout stops before video generation. Errors include `ASSET_REVIEW_FAILED`, `ASSET_REVIEW_INVALID_RESPONSE`, `ASSET_REVIEW_UNCERTAIN` and `ASSET_REVIEW_PENDING`. The worker neither bypasses rejection with raw references nor repeats video generation. Dry-run advertises `reference_review` but performs no upload or audit.

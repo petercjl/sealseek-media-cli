@@ -19,7 +19,8 @@
         "reference-image",
         "dry-run",
         "task-record",
-        "local-artifact"
+        "local-artifact",
+        "automatic-video-reference-review"
       ],
       "input_fields": [
         "kind",
@@ -33,13 +34,14 @@
         "task_id",
         "status",
         "artifacts",
-        "urls"
+        "urls",
+        "reference_reviews"
       ],
       "side_effects": {
         "authorization": "Generation is authorized by the user request; provider routing is configured in the calling Agent.",
         "external_mutation": true,
         "cost": "SealSeek credits for generation",
-        "private_state": "Local prompts and task records",
+        "private_state": "Local prompts, task records and account-scoped reference review cache",
         "may_cost_money": true
       },
       "errors": [
@@ -48,7 +50,11 @@
         "FEATURE_UNSUPPORTED",
         "SUBMISSION_UNCERTAIN",
         "AUTH_EXPIRED",
-        "AUTH_REJECTED"
+        "AUTH_REJECTED",
+        "ASSET_REVIEW_FAILED",
+        "ASSET_REVIEW_INVALID_RESPONSE",
+        "ASSET_REVIEW_UNCERTAIN",
+        "ASSET_REVIEW_PENDING"
       ]
     },
     {

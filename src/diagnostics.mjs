@@ -7,7 +7,7 @@ import { videoGuide } from './video-contract.mjs';
 export function diagnose(job,summary) {
   let guide;try{if(job.request.kind==='video')guide=videoGuide(job.request.args.model);}catch(e){guide={model:job.request.args.model,error:{code:e.code,message:e.message}};}
   return {ok:true,task:summary,state_file:path.join('jobs',job.id+'.json'),
-    submitted_arguments:job.request.args,provider_error:job.error||null,
+    submitted_arguments:job.executed_arguments||job.request.args,reference_reviews:job.reference_reviews||[],provider_error:job.error||null,
     provider_error_available:!!job.error?.details?.provider_text,
     recovery:{generation_will_not_be_repeated:true,history_command:['sealseek-media','artifacts','list','--type',job.request.kind,'--json'],
       next_action:job.result?.urls?.length?'Use task download with a fresh output directory.':job.status==='succeeded'?'Use task inspect to verify the saved files.':['queued','running','generated'].includes(job.status)?'Continue following this task ID.':'Read the error and match provider history before authorizing another generation.'},

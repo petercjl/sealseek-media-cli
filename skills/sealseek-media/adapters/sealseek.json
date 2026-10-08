@@ -21,7 +21,8 @@
         "reference-image",
         "dry-run",
         "task-record",
-        "local-artifact"
+        "local-artifact",
+        "automatic-video-reference-review"
       ]
     },
     {
