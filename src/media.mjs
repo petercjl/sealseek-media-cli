@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { requireValue, MediaError, secureUrl, hash } from './core.mjs';
 import { toolFor, validateArguments, call,request,API,authenticatedFetch,generationPayload,validateNativeInput } from './canvas.mjs';
+import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
@@ -17,17 +18,14 @@ export async function reference(value,kind='image') {
   return { file, mime, digest: hash(bytes), size: stat.size };
 }
 export function validateVideoOptions(extra,options,duration) {
-  const common=['motionIntensity','style'],seed25=['omniReferenceTaskType','outputFormat'],seed20=['videoWebSearch'],kling=['videoReferType','keepOriginalSound','multiShot','multiShotPrompts'];
-  const allowed=[...common,...(options.model==='doubao-seedance-2-5'?seed25:[]),...(/^doubao-seedance-2-0/.test(options.model)?seed20:[]),...(options.model==='kling-v3-omni'?kling:[])];
+  const common=['motionIntensity','style'],seed25=['omniReferenceTaskType','outputFormat'],seed20=['videoWebSearch'];
+  const allowed=[...common,...(options.model==='doubao-seedance-2-5'?seed25:[]),...(/^doubao-seedance-2-0/.test(options.model)?seed20:[])];
   requireValue(extra&&typeof extra==='object'&&!Array.isArray(extra),'INVALID_INPUT','Video options must be a JSON object.');
   requireValue(Object.keys(extra).every(k=>allowed.includes(k)),'FEATURE_UNSUPPORTED','Video options include unsupported fields for this model.',{allowed_fields:allowed});
   validateNativeInput('VideoParams',extra);
   requireValue(!extra.omniReferenceTaskType||['reference','edit','extend','auto'].includes(extra.omniReferenceTaskType),'FEATURE_UNSUPPORTED','Invalid Seedance 2.5 task mode.');
   requireValue(!extra.outputFormat||['mp4','mov'].includes(extra.outputFormat),'FEATURE_UNSUPPORTED','Output format must be mp4 or mov.');
   requireValue(!extra.videoWebSearch||!((options.reference||[]).length||(options['video-reference']||[]).length||options.first||options.last||options['audio-reference']),'FEATURE_UNSUPPORTED','Web search enhancement requires text-only input.');
-  requireValue(extra.videoReferType===undefined&&extra.keepOriginalSound===undefined||(options['video-reference']||[]).length,'FEATURE_UNSUPPORTED','Video reference options require --video-reference.');
-  requireValue(!extra.multiShot||!(options['video-reference']||[]).length,'FEATURE_UNSUPPORTED','Multi-shot mode cannot use video references.');
-  requireValue(extra.multiShotPrompts===undefined,'FEATURE_UNSUPPORTED','Custom Kling shot lists are currently rejected by the provider adapter (missing index). Use intelligent multiShot mode or report the service limitation.',{field:'multiShotPrompts',paid_action:false});
   return extra;
 }
 export async function prepare(kind, options, tools, catalog) {
@@ -35,7 +33,7 @@ export async function prepare(kind, options, tools, catalog) {
   requireValue(!(options.prompt && options['prompt-file']), 'INVALID_INPUT', 'Use prompt or prompt-file once.');
   const prompt = options['prompt-file'] ? await fs.readFile(path.resolve(options['prompt-file']), 'utf8') : options.prompt;
   requireValue(typeof prompt === 'string' && prompt.trim(), 'INVALID_INPUT', 'A prompt is required.');
-  requireValue(options.model, 'INVALID_INPUT', 'Specify a model returned by capabilities --live.');
+  options={...options,model:options.model||MODEL_POLICY[kind].default};
   const contract=validateModel(kind,options,{tools,catalog});
   const args = { prompt: prompt.trim(), model: options.model };
   if (!options.size) {args.aspect_ratio=options.ratio||contract.defaults.ratio;args.resolution=options.resolution||contract.defaults.resolution;}
@@ -69,7 +67,6 @@ export async function prepare(kind, options, tools, catalog) {
   if(videoRefs.length)args.reference_videos=videoRefs.map(r=>r.url||'https://reference.invalid/pending-upload.mp4');
   if(audioRef)args.reference_audio=audioRef.url||'https://reference.invalid/pending-upload.wav';
   if(options.audio!==undefined){requireValue(['true','false'].includes(options.audio),'INVALID_INPUT','Audio must be true or false.');args.generate_audio=options.audio==='true';}
-  if(options['quality-mode'])args.quality_mode=options['quality-mode'];
   const tool = toolFor(tools, `generate_${kind}`); validateArguments(tool, args);
   generationPayload(kind,args,{canvasId:'dry-run',traceId:'dry-run'});
 
@@ -116,6 +113,7 @@ export async function download(urls, kind, directory, id) {
   return files;
 }
 export async function execute(connection, request, timeout) {
+  assertModelAllowed(request.args.model,request.kind);
   const args = { ...request.args };
   if (request.refs.length) args.reference_images = await Promise.all(request.refs.map(r => upload(connection,r)));
   if (request.first) args.first_frame_image = await upload(connection, request.first);

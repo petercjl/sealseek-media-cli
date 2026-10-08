@@ -23,7 +23,7 @@ One canonical Skill is bundled and available for normal Agent discovery. Install
 In WorkBuddy, enable the installed Skill if disabled. The Agent may use it according to your configured routing, or you may select `/sealseek-media` manually. Configure a default or backup provider through your Agent's persistent rules; a one-off provider choice remains specific to that task. Runtime evidence covers real image/video generation through Codex on macOS and WorkBuddy discovery, dry-run and existing-task retrieval. Windows package tests pass; Windows real media generation and SealSeek as the calling Agent remain unverified.
 
 ```bash
-sealseek-media image generate --model gpt-image-2 --prompt "A red ceramic mug on a white background" --resolution 1K --count 1 --output ./media --dry-run --json
+sealseek-media image generate --model gpt-image-2.5-sunburst --prompt "A red ceramic mug on a white background" --resolution 1K --count 1 --output ./media --dry-run --json
 ```
 
 After explicit authorization, replace `--dry-run` with `--submit`. Query the returned task ID with `task get` or bounded `task wait`. See the Skill and `--help` for reference upload, video, recovery and download. Generation consumes SealSeek credits.
@@ -63,8 +63,11 @@ sealseek-media models show MODEL_ID --live --json
 sealseek-media models estimate MODEL_ID --resolution VALUE --json
 ```
 
-The CLI calls the Infinite Canvas REST service directly for model discovery, uploads, generation, task polling and history. It ships no MCP client. The live catalog covers 8 image and 11 video models, with model-specific resolutions, ratios, durations and references. Video/audio references, audio generation and quality modes have explicit inputs where supported. Model-specific advanced parameters use `--video-options JSON_FILE`, validated before submission. Dedicated image quick-edit, text detection and text replacement are also exposed. See the bundled Skill’s `references/models.md` for current limits and verified cases.
+The CLI calls the Infinite Canvas REST service directly for model discovery, uploads, generation, task polling and history. It ships no MCP client. The live catalog covers 3 image and 2 video models, with model-specific resolutions, ratios, durations and references. Video/audio references, audio generation have explicit inputs where supported. Model-specific advanced parameters use `--video-options JSON_FILE`, validated before submission. Dedicated image quick-edit, text detection and text replacement are also exposed. See the bundled Skill’s `references/models.md` for current limits and verified cases.
 
 Submission saves both the local task UUID and provider task ID before polling. `task resume ID --json` queries the existing remote task after a credential or worker interruption; it never generates again. Historical tasks from previous releases can still be read and their stored outputs downloaded.
 
 Explicit pixel size is rejected: a real native request for 1024x1536 returned 2048x2048. Use catalog ratio/resolution choices and inspect actual output. Camera controls and inpainting masks are not exposed by this CLI. Read-only estimates and catalog validation do not prove provider execution. Provider task records identify the selected model but do not independently attest the served model.
+
+
+Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`) and GPT Image 2.5 Flare (`gpt-image-2.5-flare`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). Select alternatives explicitly with `--model`; there is no automatic model fallback. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. Dedicated quick editing and text replacement use Nano Banana Pro.

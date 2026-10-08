@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {assertModelAllowed,filterModels} from './model-policy.mjs';
 import fs from 'node:fs/promises';
 import Ajv from 'ajv';
 import { MediaError,requireValue } from './core.mjs';
@@ -22,7 +23,7 @@ export async function request(cfg,route,{method='GET',data,timeout=30000,submiss
 }
 export function toolsFor(catalog) {
   const text={type:'string'},urls={type:'array',items:text};
-  return ['image','video'].map(kind=>({name:`generate_${kind}`,transport:'SealSeek Infinite Canvas REST',inputSchema:{type:'object',required:['prompt','model'],properties:{prompt:text,model:{type:'string',enum:catalog.models.filter(m=>m.type===kind).map(m=>m.id)},aspect_ratio:text,resolution:text,...(kind==='image'?{num:{type:'integer',minimum:1,maximum:4}}:{duration:{type:'integer',minimum:1},first_frame_image:text,last_frame_image:text,reference_videos:urls,reference_audio:text,generate_audio:{type:'boolean'},quality_mode:text,video_options:{type:'object'}}),reference_images:urls}}}));
+  return ['image','video'].map(kind=>({name:`generate_${kind}`,transport:'SealSeek Infinite Canvas REST',inputSchema:{type:'object',required:['prompt','model'],properties:{prompt:text,model:{type:'string',enum:filterModels(catalog.models).filter(m=>m.type===kind).map(m=>m.id)},aspect_ratio:text,resolution:text,...(kind==='image'?{num:{type:'integer',minimum:1,maximum:4}}:{duration:{type:'integer',minimum:1},first_frame_image:text,last_frame_image:text,reference_videos:urls,reference_audio:text,generate_audio:{type:'boolean'},video_options:{type:'object'}}),reference_images:urls}}}));
 }
 export async function connect(options={}) {
   const cfg=await desktopConfig(options),catalog=await liveCatalog(options,cfg);
@@ -43,7 +44,7 @@ export function generationPayload(kind,args,{canvasId,traceId}) {
   if(kind==='image'){payload.num=args.num||1;payload.imageParams={model:args.model,num:String(payload.num),resolution:args.resolution,aspectRatio:args.aspect_ratio,...(refs.length?{images:refs}:{})};}
   else {
     payload.duration=args.duration;payload.firstFrameImage=args.first_frame_image;payload.lastFrameImage=args.last_frame_image;
-    payload.videoParams={...(args.video_options||{}),model:args.model,duration:String(args.duration),aspectRatio:args.aspect_ratio,resolution:args.resolution,...(refs.length?{referenceImages:refs}:{}),...(args.reference_videos?.length?{referenceVideos:args.reference_videos}:{}),...(args.reference_audio?{referenceAudio:args.reference_audio}:{}),...(args.generate_audio!==undefined?{generateAudio:args.generate_audio}:{}),...(args.quality_mode?{mode:args.quality_mode}:{})};
+    payload.videoParams={...(args.video_options||{}),model:args.model,duration:String(args.duration),aspectRatio:args.aspect_ratio,resolution:args.resolution,...(refs.length?{referenceImages:refs}:{}),...(args.reference_videos?.length?{referenceVideos:args.reference_videos}:{}),...(args.reference_audio?{referenceAudio:args.reference_audio}:{}),...(args.generate_audio!==undefined?{generateAudio:args.generate_audio}:{})};
     payload.bgm=args.generate_audio===true;payload.cameraFixed=false;
   }
   validateNativeInput(kind==='image'?'ImageParams':'VideoParams',kind==='image'?payload.imageParams:payload.videoParams);
@@ -64,6 +65,7 @@ export async function pollTask(cfg,id,{timeout=900000,interval=5000,onProgress}=
   throw new MediaError('SUBMISSION_UNCERTAIN','The saved Infinite Canvas task is still unresolved. Resume this task; do not submit again.',{remote_task_id:id,...(lastError?{last_error:lastError.code}:{}),retry_automatically:false});
 }
 export async function generate(connection,kind,args,timeout) {
+  assertModelAllowed(args.model,kind);
   validateArguments(toolFor(connection.tools,`generate_${kind}`),args);
   const canvas=await request(connection.cfg,'/canvas/create',{method:'POST',data:{title:'SealSeek Media CLI',description:'Media generation',tags:['CLI']}});
   requireValue(canvas?.id!==undefined,'OUTPUT_CONTRACT_FAILED','Infinite Canvas returned no canvas ID.');

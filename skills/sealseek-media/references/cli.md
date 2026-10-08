@@ -9,8 +9,8 @@ Authentication: `auth status --json` reports source and local expiry metadata wi
 `auth logout --yes` privately backs up and removes plugin credentials and blocks desktop fallback until login. `--desktop` additionally backs up the desktop configuration and removes only its media authentication headers. Default profile: current-user `.config/sealseek-media/auth.json`, override `SEALSEEK_MEDIA_AUTH_FILE`. Explicit desktop config overrides use their own credentials. Backups live under the private state directory's `credential-backups` folder. JWT timestamps are decoded metadata; live server validation remains authoritative.
 
 ```bash
-sealseek-media image generate --model gpt-image-2 --prompt "A ceramic mug under soft studio lighting" --resolution 1K --count 1 --output ./media --dry-run --json
-sealseek-media video generate --model doubao-seedance-2-0 --prompt "Camera slowly pushes toward a ceramic mug" --duration 4 --resolution 480p --output ./media --dry-run --json
+sealseek-media image generate --model gpt-image-2.5-sunburst --prompt "A ceramic mug under soft studio lighting" --resolution 1K --count 1 --output ./media --dry-run --json
+sealseek-media video generate --model doubao-seedance-2-5 --prompt "Camera slowly pushes toward a ceramic mug" --duration 4 --resolution 480p --output ./media --dry-run --json
 ```
 
 For human-authorized generation, replace `--dry-run` with `--submit`. The legacy `--via sealseek` flag remains optional for compatibility. Submission returns a local task UUID. Follow that task:
@@ -66,25 +66,25 @@ All service operations use Infinite Canvas REST; no MCP client is used. `task re
 Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and a listed `--quality-mode`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
 
 ```bash
-sealseek-media image edit --image ./photo.png --model gpt-image-2 --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
+sealseek-media image edit --image ./photo.png --model nano-banana-pro --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
 sealseek-media image detect-text --image ./poster.png --submit --json
 sealseek-media image replace-text --image ./poster.png --old-text HELLO --new-text WELCOME --box 0.2,0.7,0.8,0.85 --output ./edited --dry-run --json
 ```
 
-Text detection invokes the provider and may have service cost. Quick edit accepts `gpt-image-2`, `nano-banana-pro` and `nano-banana2`. Replacement additionally accepts the catalog's `seedream-5-0` and `seedream-5-0-lite`; the default is `gpt-image-2`. Optional boxes are normalized coordinates from detection, between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
+Text detection is OCR, with no selectable generation model. Quick edit and text replacement use `nano-banana-pro`. Optional text boxes use normalized coordinates between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
 
 ## Advanced video parameters
 
-Use `--video-options ./video-options.json` for an optional JSON object. Basic model, ratio, resolution, duration, references, audio and quality remain CLI flags; the JSON cannot override them. These fields follow the official OpenAPI and model rules; advanced combinations are provider-declared unless `observed_runtime` records a matching real success.
+Use `--video-options ./video-options.json` for an optional JSON object. Basic model, ratio, resolution, duration, references and audio remain CLI flags; the JSON cannot override them. These fields follow the official OpenAPI and model rules; advanced combinations are provider-declared unless `observed_runtime` records a matching real success.
 
 | Model | Allowed additional fields | Validation |
 |---|---|---|
 | All video models | `motionIntensity`, `style` | Strings; no undocumented preset values are invented |
 | Seedance 2.5 | `omniReferenceTaskType`, `outputFormat` | `reference/edit/extend/auto`; `mp4/mov` |
-| Seedance 2.0 / Fast / Mini | `videoWebSearch` | Boolean; true requires text-only input |
-| Kling v3 omni | `videoReferType`, `keepOriginalSound` | `base/feature`, boolean; requires a video reference |
-| Kling v3 omni | `multiShot` | Boolean for intelligent multi-shot mode; excludes video references |
-
-An options file can contain `{"multiShot":true}`. Custom `multiShotPrompts` lists are blocked before upload: a real native test was rejected by the provider adapter because its downstream request lacked shot indexes. This is a service limitation, despite the field appearing in OpenAPI.
+| Seedance 2.0 | `videoWebSearch` | Boolean; true requires text-only input |
 
 Multi-audio references and image reference role/description fields are not exposed by this CLI. Local video references accept MP4/MOV/WebM; local audio accepts MP3/WAV/M4A; each is limited to 200 MiB. Do not replace an unsupported request with direct API experiments. Report the missing parameter or propose a compatible choice for the user.
+
+## Defaults and model permission
+
+`--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro` and `gpt-image-2.5-flare`; video alternative is `doubao-seedance-2-0`. Alternatives are explicit selections; no automatic fallback. Model discovery, estimates, image editing and background generation all enforce the package allowlist.

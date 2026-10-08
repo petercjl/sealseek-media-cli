@@ -1,0 +1,16 @@
+{
+  "image": {
+    "default": "gpt-image-2.5-sunburst",
+    "alternatives": [
+      "nano-banana-pro",
+      "gpt-image-2.5-flare"
+    ]
+  },
+  "video": {
+    "default": "doubao-seedance-2-5",
+    "alternatives": [
+      "doubao-seedance-2-0"
+    ]
+  },
+  "automatic_fallback": false
+}

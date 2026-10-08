@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import {MODEL_POLICY,assertModelAllowed} from '../src/model-policy.mjs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src/core.mjs';
@@ -28,15 +29,15 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   auth status [--live] [--login-id UUID] --json
   auth login [--device client|web] [--method sms|wechat] --json                  (local webpage; default CLIENT channel and SMS login)
   auth logout [--desktop] --yes --json (private backups before credential removal)
-  image generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
+  image generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
     [--ratio RATIO] [--resolution VALUE] [--count 1-4]
     [--prompt-file FILE] [--output DIR] [--dry-run | --submit] [--new] --json
-  video guide --model ID --json       (reference modes, model constraints, workflow)
-  video generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
+  video guide [--model ID] --json       (reference modes, model constraints, workflow)
+  video generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
     [--ratio RATIO] [--resolution VALUE] [--duration SECONDS]
     [--first FILE_OR_URL] [--last FILE_OR_URL]
     [--video-reference FILE_OR_URL ...] [--audio-reference FILE_OR_URL]
-    [--audio true|false] [--quality-mode std|pro] [--video-options JSON_FILE]
+    [--audio true|false] [--video-options JSON_FILE]
     [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
     [--dry-run | --submit] [--new] --json
     Video has one output per request; --count is image-only.
@@ -62,6 +63,8 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
 
 Desktop discovery: --config FILE, --server NAME. These override the current
 user's SealSeek desktop configuration. Credentials stay outside this package.
+Default image model: gpt-image-2.5-sunburst. Default video model: doubao-seedance-2-5.
+Alternatives require an explicit --model selection; no automatic fallback.
 Generation defaults to dry-run. --submit executes a real generation request.
 Legacy --via sealseek is accepted for compatibility and is optional.
 Same requests reuse the saved local task; --new explicitly creates another.
@@ -90,7 +93,7 @@ async function main(argv) {
     const {options,args}=parse(rest,[...common,'live','type','resolution','ratio','duration','count']);
     requireValue(!options.type||['image','video'].includes(options.type),'INVALID_INPUT','Type must be image or video.');
     const render=async(c,catalog)=>{
-      if(action==='list'){requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');return out({ok:true,source:catalog.source,retrieved_at:catalog.retrieved_at,models:catalog.models.filter(m=>!options.type||m.type===options.type).map(m=>modelContract(m.id,{catalog,tools:c?.tools}))});}
+      if(action==='list'){requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');return out({ok:true,model_policy:MODEL_POLICY,source:catalog.source,retrieved_at:catalog.retrieved_at,models:catalog.models.filter(m=>!options.type||m.type===options.type).map(m=>modelContract(m.id,{catalog,tools:c?.tools}))});}
       requireValue(args.length===1,'INVALID_INPUT','Provide one model ID.');
       const contract=modelContract(args[0],{catalog,tools:c?.tools});
       if(action==='show')return out({ok:true,...contract});
@@ -103,7 +106,7 @@ async function main(argv) {
   if (command === 'doctor' || command === 'capabilities') {
     const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const manifest=JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8'));
-    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',manifest,model_catalog:CATALOG});
+    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',model_policy:MODEL_POLICY,manifest,model_catalog:CATALOG});
     let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
     const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:process.platform==='darwin', ...(command==='capabilities'?{manifest}:{})};
     if (options.live) return withConnection(options,async c=>{await verifyCredentials(c.cfg);return out({...result,...(command==='capabilities'?{model_catalog:c.catalog}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),transport:'SealSeek Infinite Canvas REST'});});
@@ -113,14 +116,16 @@ async function main(argv) {
   if(command==='image'&&['edit','replace-text','detect-text'].includes(action)){
     const {options,args}=parse(rest,[...common,'image','model','prompt','old-text','new-text','box','output','timeout','dry-run','submit','new']);requireValue(!args.length&&options.image,'INVALID_INPUT','Provide --image FILE_OR_URL.');
     if(action==='detect-text'){
+      requireValue(!options.model,'INVALID_INPUT','Text detection is OCR and has no selectable generation model.');
       const ref=await reference(options.image);requireValue(options.submit&&!options['dry-run'],'SUBMIT_REQUIRED','Text detection requires --submit.');
       return withConnection(options,async c=>{const url=await upload(c,ref);out({ok:true,detection:await canvasRequest(c.cfg,'/canvas/image/editTextDetect',{method:'POST',data:{imageUrl:url}})});});
     }
     requireValue(action!=='replace-text'||options['old-text']&&options['new-text'],'INVALID_INPUT','Provide --old-text and --new-text.');
     const operationSchema=action==='edit'?'QuickEditRunParam':'EditTextParam';
     const allowed=NATIVE_CONTRACT.schemas[operationSchema].properties.model.enum;
-    requireValue(allowed.includes(options.model||'gpt-image-2'),'FEATURE_UNSUPPORTED','The selected model does not support this image operation.',{operation:action,allowed_models:allowed});
-    const opts={...options,model:options.model||'gpt-image-2',prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
+    requireValue(allowed.includes(options.model||'nano-banana-pro'),'FEATURE_UNSUPPORTED','The selected model does not support this image operation.',{operation:action,allowed_models:allowed});
+    assertModelAllowed(options.model||'nano-banana-pro','image');
+    const opts={...options,model:options.model||'nano-banana-pro',prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
     const prepared=await withConnection(options,async c=>prepare('image',opts,c.tools,c.catalog));
     prepared.operation=action==='edit'?'quick-edit':'replace-text';
     if(action==='replace-text'){
@@ -132,7 +137,7 @@ async function main(argv) {
     return out(await submit(prepared,options));
   }
   if (['image','video'].includes(command) && action === 'generate') {
-    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','quality-mode','video-options','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference','video-reference']);
+    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
     if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});

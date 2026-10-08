@@ -48,6 +48,10 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const file=path.join(dir,'参考图.png');await fs.writeFile(file,png);
   const base=['image','generate','--prompt','测试红杯','--model','gpt-image-2.5-flare','--reference',file,'--output',path.join(dir,'out'),'--json'];
   const dry=await cli(base);assert.equal(dry.dry_run,true);assert.equal(generations,0);assert.equal(uploads,0);
+  const defaultImage=await cli(['image','generate','--prompt','default image','--dry-run']);assert.equal(defaultImage.arguments.model,'gpt-image-2.5-sunburst');
+  const defaultVideo=await cli(['video','generate','--prompt','default video','--dry-run']);assert.equal(defaultVideo.arguments.model,'doubao-seedance-2-5');
+  await assert.rejects(cli(['image','generate','--model','gpt-image-2','--prompt','blocked','--reference',file,'--submit']));assert.equal(generations,0);assert.equal(uploads,0);
+
   await assert.rejects(cli([...base,'--submit','--dry-run']));assert.equal(generations,0);
   const job=await cli([...base,'--submit']);assert.equal(job.status,'queued');
   let done;for(let i=0;i<30;i++){done=await cli(['task','get',job.task_id]);if(done.status==='succeeded')break;await new Promise(r=>setTimeout(r,100));}
