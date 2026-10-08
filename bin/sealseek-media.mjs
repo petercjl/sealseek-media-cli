@@ -9,6 +9,7 @@ import { submit, getJob, summary, waitJob, worker } from '../src/jobs.mjs';
 import { SOURCE, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
+import { latestVersion,performUpdate,updateStatus,setAutomatic } from '../src/update.mjs';
 
 const HELP=`sealseek-media ${META.version}
 SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
@@ -33,6 +34,7 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   skill status|install|update --agent codex|workbuddy|sealseek [--path DIR] --json
   update check --json
   update install --yes --json
+  update auto status|on|off --json
 
 Desktop discovery: --config FILE, --server NAME. These override the current
 user's SealSeek desktop configuration. Credentials stay outside this package.
@@ -104,22 +106,31 @@ async function main(argv) {
     if (['install','update'].includes(action)) return out(await install(options.agent,options));
   }
   if (command==='update') {
-    const {options,args}=parse(rest,['json','yes']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const response=await fetch(`https://registry.npmjs.org/${encodeURIComponent(META.name)}/latest`,{signal:AbortSignal.timeout(20000)});
-    requireValue(response.ok,'REGISTRY_UNAVAILABLE','No published stable package is available, or registry is offline.');
-    const remote=await response.json();
-    if (action==='check') return out({ok:true,current:META.version,latest:remote.version,update_available:remote.version!==META.version});
-    if (action==='install') {
-      requireValue(options.yes,'PERMISSION_REQUIRED','Package update requires --yes.');
-      requireValue(!await fs.stat(path.join(ROOT,'.git')).catch(()=>null),'DEVELOPMENT_CHECKOUT','Update a Git checkout through Git; packaged installs use update install.');
-      const managed=[]; for (const agent of ['codex','workbuddy','sealseek']) if ((await status(agent)).managed) managed.push(agent);
-      const npm=process.platform==='win32'?'npm.cmd':'npm';
-      const result=spawnSync(npm,['install','--global',`${META.name}@${remote.version}`,'--ignore-scripts'],{encoding:'utf8'});
-      requireValue(result.status===0,'UPDATE_FAILED','npm package update failed. The existing Skill installation is preserved.');
-      for(const agent of managed) { const sync=spawnSync('sealseek-media',['skill','update','--agent',agent,'--json'],{encoding:'utf8'}); requireValue(sync.status===0,'SKILL_SYNC_FAILED','Package updated; managed Skill synchronization failed.'); }
-      return out({ok:true,version:remote.version,skills_synchronized:managed});
+    if(action==='auto') {
+      const [mode,...flags]=rest;const {args}=parse(flags,['json']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
+      if(mode==='status')return out({ok:true,...await updateStatus()});
+      if(['on','off'].includes(mode))return out(await setAutomatic(mode==='on'));
+      throw new MediaError('INVALID_INPUT','Use update auto status, on or off.');
     }
+    const {options,args}=parse(rest,['json','yes']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
+    if(action==='check'){const latest=await latestVersion();return out({ok:true,current:META.version,latest,update_available:latest!==META.version});}
+    if(action==='install') {requireValue(options.yes,'PERMISSION_REQUIRED','Package update requires --yes.');return out(await performUpdate({automatic:false}));}
   }
   throw new MediaError('UNKNOWN_COMMAND','Unknown command. Use sealseek-media --help.');
 }
-main(process.argv.slice(2)).catch(e=>{out({ok:false,error:publicError(e)});process.exitCode=1;});
+async function entry() {
+  const argv=process.argv.slice(2);
+  if(argv[0]&&!['_worker','_auth-worker','update'].includes(argv[0])&&process.env.SEALSEEK_MEDIA_AUTO_UPDATE!=='0') {
+    const result=await performUpdate();
+    if(result.skipped==='update_in_progress')throw new MediaError('UPDATE_BUSY','Another CLI is updating this package. Retry after the update finishes; no media request was submitted.');
+    if(!result.ok)console.error(JSON.stringify({auto_update:result}));
+    const installed=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8'));
+    if(installed.version!==META.version) {
+      console.error(JSON.stringify({auto_update:{version:installed.version,updated:true}}));
+      const r=spawnSync(process.execPath,[path.join(ROOT,'bin','sealseek-media.mjs'),...argv],{stdio:'inherit',env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
+      process.exitCode=r.status??1;return;
+    }
+  }
+  return main(argv);
+}
+entry().catch(e=>{out({ok:false,error:publicError(e)});process.exitCode=1;});

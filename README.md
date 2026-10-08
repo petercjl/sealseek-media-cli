@@ -33,3 +33,18 @@ Private local task records live in current-user `.local/state/sealseek-media` or
 `skill source/status/install/update` manages copies, recoverable backups and hashes. `update check/install` updates packaged installations and synchronizes default managed Skill locations. Custom paths require explicit synchronization. Git checkouts stay Git-managed. Local edits and customized metadata are preserved or backed up.
 
 Development: `npm ci --ignore-scripts`, `npm test`, `npm pack --dry-run`. macOS is the initial runtime target. Windows runtime is unverified. Publication uses a separately authorized GitHub Actions Trusted Publishing workflow.
+
+## Automatic updates
+
+Global npm installations automatically check the stable npm `latest` channel on CLI invocation, at most once per 24 hours. A newer stable version is downloaded and installed before the requested command runs; the command then runs once through the new CLI. Existing managed default-location Skills are synchronized with backups and customized UI metadata preserved. Generation and login workers do not run updates. Active tasks/login workers delay installation. Git checkouts and non-global installations stay managed by their existing package manager.
+
+Offline checks and update failures report a diagnostic on stderr and retain the ordinary command path. Local Skill edits delay automatic installation until reviewed; automatic updates never force Skill replacement. Package backups are stored privately in the state directory under `package-backups`; Skill backups use `skill-backups`. To recover after a failed installation, install the previous exact npm version and synchronize managed Skills, or restore the saved package backup. Failed checks retry after the daily interval; active work and local edits are reconsidered on the next invocation. No daemon runs while the CLI is idle.
+
+```bash
+sealseek-media update auto status --json
+sealseek-media update auto off --json
+sealseek-media update auto on --json
+sealseek-media update install --yes --json
+```
+
+`SEALSEEK_MEDIA_AUTO_UPDATE=0` disables automatic updates for the current process. Automatic installation uses npm with lifecycle scripts disabled and never changes authentication or Agent provider-routing rules.
