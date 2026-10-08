@@ -52,8 +52,8 @@ test('official QR contract: pending, verified token storage, private page and te
   const html=await response.text();assert(html.includes('微信官方登录二维码'));assert(!html.includes(token));assert.equal(response.headers.get('cache-control'),'no-store');
   assert.equal((await fetch(new URL('/unauthorized',session.login_url))).status,404);
   assert.equal(saved,false);allow=true;
-  for(let i=0;i<100;i++){if((await loginStatus(id)).status==='succeeded')break;await new Promise(r=>setTimeout(r,20));}
-  assert.equal((await loginStatus(id)).status,'succeeded');assert(saved);assert(!JSON.stringify(await loginStatus(id)).includes(token));
+  for(let i=0;i<100;i++){if(['succeeded','failed','expired'].includes((await loginStatus(id)).status))break;await new Promise(r=>setTimeout(r,20));}
+  const terminal=await loginStatus(id);assert.equal(terminal.status,'succeeded',JSON.stringify(terminal.error));assert(saved);assert(!JSON.stringify(await loginStatus(id)).includes(token));
  }finally{handle?.close();mock.closeAllConnections();await new Promise(r=>mock.close(r));if(prev===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=prev;await fs.rm(dir,{recursive:true,force:true});}
 });
 
