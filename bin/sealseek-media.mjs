@@ -10,6 +10,9 @@ import { SOURCE, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
 import { latestVersion,performUpdate,updateStatus,setAutomatic } from '../src/update.mjs';
+import { videoGuide } from '../src/video-contract.mjs';
+import { diagnose,inspectTask } from '../src/diagnostics.mjs';
+import { CATALOG,liveCatalog,modelContract,estimate } from '../src/models.mjs';
 
 const HELP=`sealseek-media ${META.version}
 SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
@@ -17,16 +20,27 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   version
   doctor [--live] --json
   capabilities [--live] --json
+  models list [--type image|video] [--live] --json
+  models show ID [--live] --json       (all parameters and transport limitations)
+  models estimate ID [--resolution VALUE] [--ratio RATIO]
+    [--duration SECONDS | --count N] --json (read-only pricing; no generation)
   auth status [--live] [--login-id UUID] --json
   auth login --json                  (returns a local webpage; user scans official QR)
   auth logout [--desktop] --yes --json (private backups before credential removal)
-  image|video generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
-    [--ratio RATIO] [--resolution VALUE] [--size WxH] [--count N]
-    [--duration SECONDS] [--first FILE_OR_URL] [--last FILE_OR_URL]
+  image generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
+    [--ratio RATIO] [--resolution VALUE] [--size WxH] [--count 1-4]
+    [--prompt-file FILE] [--output DIR] [--dry-run | --submit] [--new] --json
+  video guide --model ID --json       (reference modes, model constraints, workflow)
+  video generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
+    [--ratio RATIO] [--resolution VALUE] [--duration SECONDS]
+    [--first FILE_OR_URL] [--last FILE_OR_URL]
     [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
     [--dry-run | --submit] [--new] --json
+    Video has one output per request; --count and --size are image-only.
   image upload FILE --submit --json
   task get ID --json
+  task diagnose ID --json              (read-only; no generation replay)
+  task inspect ID --json               (saved file hashes, dimensions and duration)
   task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
   task download ID --output DIR --json  (uses stored URLs, never regenerates)
   artifacts list [--type image|video] [--page N] [--limit N] --json
@@ -48,6 +62,7 @@ async function withConnection(options,fn) { const c=await connect(options); try 
 async function main(argv) {
   const [command, action, ...rest]=argv;
   if (!command || ['--help','-h','help'].includes(command)) return console.log(HELP);
+  if (['image','video'].includes(command)&&['--help','help','-h'].includes(action))return console.log(HELP);
   if (['version','--version','-v'].includes(command)) return console.log(`sealseek-media ${META.version}`);
   if (command === '_worker') return worker(action);
   if(command==='_auth-worker')return serveLogin(action,{verify:async token=>{const c=await connect({authToken:token});try{await call(c,'list_artifacts',{pageNum:1,pageSize:1},30000);}finally{await c.close();}}});
@@ -61,20 +76,35 @@ async function main(argv) {
       return out({...v,verified:false});
     }
   }
+  if(command==='models'){
+    const {options,args}=parse(rest,[...common,'live','type','resolution','ratio','duration','count']);
+    requireValue(!options.type||['image','video'].includes(options.type),'INVALID_INPUT','Type must be image or video.');
+    const render=async(c,catalog)=>{
+      if(action==='list'){requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');return out({ok:true,source:catalog.source,retrieved_at:catalog.retrieved_at,models:catalog.models.filter(m=>!options.type||m.type===options.type).map(m=>modelContract(m.id,{catalog,tools:c?.tools}))});}
+      requireValue(args.length===1,'INVALID_INPUT','Provide one model ID.');
+      const contract=modelContract(args[0],{catalog,tools:c?.tools});
+      if(action==='show')return out({ok:true,...contract});
+      if(action==='estimate')return out(await estimate(options,contract,c?.cfg));
+      throw new MediaError('UNKNOWN_COMMAND','Use models list, show or estimate.');
+    };
+    if(options.live)return withConnection(options,async c=>render(c,await liveCatalog(options,c.cfg)));
+    return render(null,CATALOG);
+  }
   if (command === 'doctor' || command === 'capabilities') {
     const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const manifest=JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8'));
-    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',manifest});
+    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',manifest,model_catalog:CATALOG});
     let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
     const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:process.platform==='darwin', ...(command==='capabilities'?{manifest}:{})};
-    if (options.live) return withConnection(options,c=>out({...result,tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),server_info:c.client.getServerVersion()}));
+    if (options.live) return withConnection(options,async c=>out({...result,...(command==='capabilities'?{model_catalog:await liveCatalog(options,c.cfg)}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),server_info:c.client.getServerVersion()}));
     return out(result);
   }
+  if(command==='video'&&action==='guide'){const {options,args}=parse(rest,[...common,'model','live']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');if(options.live)return withConnection(options,async c=>out({ok:true,...videoGuide(options.model,{catalog:await liveCatalog(options,c.cfg),tools:c.tools})}));return out({ok:true,...videoGuide(options.model)});}
   if (['image','video'].includes(command) && action === 'generate') {
     const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const request=await withConnection(options,c=>prepare(command,options,c.tools));
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,kind:request.kind,tool:request.tool,arguments:request.args,local_uploads:request.refs.filter(r=>r.file).length+(request.first?.file?1:0)+(request.last?.file?1:0),output:request.output});
+    const request=await withConnection(options,async c=>prepare(command,options,c.tools,await liveCatalog(options,c.cfg)));
+    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-tool-schema',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,local_uploads:request.refs.filter(r=>r.file).length+(request.first?.file?1:0)+(request.last?.file?1:0),output:request.output});
     return out(await submit(request,options));
   }
   if (command==='image' && action==='upload') {
@@ -86,6 +116,8 @@ async function main(argv) {
   if (command==='task') {
     const {options,args}=parse(rest,['json','timeout','output']); requireValue(args.length===1,'INVALID_INPUT','Provide one task UUID.');
     if (action==='get') return out(summary(await getJob(args[0])));
+    if (action==='diagnose'){const job=await getJob(args[0]);return out(diagnose(job,summary(job)));}
+    if (action==='inspect')return out(await inspectTask(await getJob(args[0])));
     if (action==='wait') return out(await waitJob(args[0],Number(options.timeout || 30)));
     if (action==='download') {
       const job=await getJob(args[0]); requireValue(job.result?.urls?.length && options.output,'INVALID_INPUT','Stored URLs and --output are required.');

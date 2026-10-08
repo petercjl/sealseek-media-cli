@@ -61,8 +61,19 @@ export function validateArguments(tool, args) {
   const validate = new Ajv({ strict: false, allErrors: true }).compile(schema);
   requireValue(validate(args), 'FEATURE_UNSUPPORTED', 'The request does not match the current desktop tool schema.', { fields: (validate.errors || []).map(e => ({ path: e.instancePath, keyword: e.keyword, message: e.message })) });
 }
+export function sanitizeProviderText(value) {
+  return String(value).replace(/https?:\/\/[^\s<>"']+/gi,'[redacted URL]')
+    .replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,'[redacted credential]')
+    .replace(/((?:token|password|secret|cookie|api[_-]?key|authorization)["']?\s*[:=]\s*["']?)[^\s"',;]+/gi,'$1[redacted]')
+    .replace(/[A-Za-z0-9_+/=-]{64,}/g,'[redacted opaque value]').slice(0,1500);
+}
 export function unwrap(result) {
-  requireValue(!result.isError, 'PROVIDER_FAILURE', 'SealSeek returned a tool error. Check task history before retrying.');
+  if(result.isError) {
+    const text=sanitizeProviderText((result.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n')||result.structuredContent?.message||result.structuredContent?.error?.message||'SealSeek returned a tool error.');
+    const parameterError=/参数配置|任务类型约束|不支持.*参数|unsupported.*param|invalid.*param/i.test(text);
+    throw new MediaError(parameterError?'PROVIDER_PARAMETER_REJECTED':'PROVIDER_FAILURE','SealSeek rejected the tool request. See the sanitized provider error and task diagnosis.',{provider_text:text,retry_automatically:false,next_action:'Use task diagnose TASK_ID --json and inspect history. Changing a failed request is a new generation, not a read-only probe.'});
+  }
   const values = [];
   if (result.structuredContent) values.push(result.structuredContent);
   for (const c of result.content || []) {
@@ -74,5 +85,5 @@ export async function call(connection, name, args, timeout = 900000) {
   const tool = toolFor(connection.tools, name);
   validateArguments(tool, args);
   try { return unwrap(await connection.client.callTool({ name, arguments: args }, undefined, { timeout, maxTotalTimeout: timeout })); }
-  catch (e) { if (e instanceof MediaError) throw e; throw new MediaError('SUBMISSION_UNCERTAIN', 'The media tool connection ended without a verified result. Inspect history; do not submit again automatically.'); }
+  catch (e) { if (e instanceof MediaError) throw e; throw new MediaError('SUBMISSION_UNCERTAIN', 'The media tool connection ended without a verified result. Inspect history; do not submit again automatically.',{transport_code:typeof e.code==='number'?e.code:null,transport_error:sanitizeProviderText(e.message||'Connection ended.'),retry_automatically:false}); }
 }

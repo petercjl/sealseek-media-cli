@@ -1,0 +1,802 @@
+{
+  "source": "https://gateway.sealseek.cn/api/sealseek-infinitecanvas/api/generation-models",
+  "retrieved_at": "2026-10-08",
+  "evidence": "provider_catalog_declared",
+  "models": [
+    {
+      "id": "gpt-image-2.5-flare",
+      "name": "sealseek-ai-image-2.5-flare",
+      "provider": "openai",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "3:2",
+          "2:3",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "16:9",
+          "9:16",
+          "21:9"
+        ],
+        "supportsReference": true,
+        "maxReferences": 16,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "最新最强模型，均衡通用，快速出图",
+      "isNew": false
+    },
+    {
+      "id": "gpt-image-2.5-sunburst",
+      "name": "sealseek-ai-image-2.5-sunburst",
+      "provider": "openai",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "3:2",
+          "2:3",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "16:9",
+          "9:16",
+          "21:9"
+        ],
+        "supportsReference": true,
+        "maxReferences": 16,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": true,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "最新最强模型，专业精细，速度略慢",
+      "isNew": false
+    },
+    {
+      "id": "gpt-image-2",
+      "name": "sealseek-ai-image-2",
+      "provider": "openai",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "3:2",
+          "2:3",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "16:9",
+          "9:16",
+          "21:9"
+        ],
+        "supportsReference": true,
+        "maxReferences": 16,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "一句话秒出上架详情页：文案准、排版精",
+      "isNew": false
+    },
+    {
+      "id": "nano-banana-pro",
+      "name": "sealseek-ai-image-pro",
+      "provider": "google",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "21:9",
+          "3:2",
+          "2:3",
+          "5:4",
+          "4:5"
+        ],
+        "supportsReference": true,
+        "maxReferences": 14,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "画面更精细，细节表现更好，适合复杂场景",
+      "isNew": false
+    },
+    {
+      "id": "nano-banana2",
+      "name": "sealseek-ai-image-flash",
+      "provider": "google",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "21:9",
+          "3:2",
+          "2:3",
+          "5:4",
+          "4:5"
+        ],
+        "supportsReference": true,
+        "maxReferences": 14,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "最新版本，画质最好，人物和商品更真实，效果最稳定",
+      "isNew": false
+    },
+    {
+      "id": "nano-banana2-lite",
+      "name": "sealseek-ai-image-lite",
+      "provider": "google",
+      "type": "image",
+      "resolutions": [
+        "1K"
+      ],
+      "capabilities": {
+        "maxResolution": "1K",
+        "aspectRatios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "21:9",
+          "3:2",
+          "2:3",
+          "5:4",
+          "4:5"
+        ],
+        "supportsReference": true,
+        "maxReferences": 14,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "轻量版本，生图速度快，最高支持1k分辨率",
+      "isNew": false
+    },
+    {
+      "id": "seedream-5-0",
+      "name": "SeeDream 5.0 Pro",
+      "provider": "bytedance",
+      "type": "image",
+      "resolutions": [
+        "2K",
+        "1K"
+      ],
+      "capabilities": {
+        "maxResolution": "2K",
+        "aspectRatios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3"
+        ],
+        "supportsReference": true,
+        "maxReferences": 10,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "即梦最新旗舰模型,更强语义理解,审美强",
+      "isNew": false
+    },
+    {
+      "id": "seedream-5-0-lite",
+      "name": "SeeDream 5.0 Lite",
+      "provider": "bytedance",
+      "type": "image",
+      "resolutions": [
+        "2K",
+        "3K"
+      ],
+      "capabilities": {
+        "maxResolution": "3K",
+        "aspectRatios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3"
+        ],
+        "supportsReference": true,
+        "maxReferences": 14,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "即梦最新轻量模型,生成速度较快",
+      "isNew": false
+    },
+    {
+      "id": "doubao-seedance-2-5",
+      "name": "doubao-seedance-2-5",
+      "provider": "doubao",
+      "type": "video",
+      "resolutions": [
+        "480p",
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 30,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15,
+          20,
+          25,
+          30
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 10,
+        "supportsCameraControl": false
+      },
+      "description": "画面 真实感 显著增强，在光影表现、表演理解与执行、镜头运动上都更接近真实拍摄，成片质感与叙事可信度大幅提升。",
+      "isNew": false
+    },
+    {
+      "id": "doubao-seedance-2-0",
+      "name": "seedance-2-0",
+      "provider": "doubao",
+      "type": "video",
+      "resolutions": [
+        "480p",
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 9,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 3,
+        "supportsCameraControl": false
+      },
+      "description": " seedance 2.0 系列模型旗舰版版。",
+      "isNew": false
+    },
+    {
+      "id": "doubao-seedance-2-0-fast",
+      "name": "doubao-seedance-2-0-fast",
+      "provider": "doubao",
+      "type": "video",
+      "resolutions": [
+        "480p",
+        "720p"
+      ],
+      "capabilities": {
+        "maxResolution": "720p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 9,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 3,
+        "supportsCameraControl": false
+      },
+      "description": "seedance 2.0 系列模型极速版,质量均衡,生成速度快",
+      "isNew": false
+    },
+    {
+      "id": "wan3.0-video",
+      "name": "通义万相3.0",
+      "provider": "wan",
+      "type": "video",
+      "resolutions": [
+        "480p",
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 10,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15,
+          20,
+          25,
+          30
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 5,
+        "supportsCameraControl": false
+      },
+      "description": "全能多模态参考，最长30s",
+      "isNew": false
+    },
+    {
+      "id": "doubao-seedance-2-0-mini",
+      "name": "doubao-seedance-2-0-mini",
+      "provider": "doubao",
+      "type": "video",
+      "resolutions": [
+        "480p",
+        "720p"
+      ],
+      "capabilities": {
+        "maxResolution": "720p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 9,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 3,
+        "supportsCameraControl": false
+      },
+      "description": "seedance 2.0 系列模型mini版,成本低，生成速度快",
+      "isNew": false
+    },
+    {
+      "id": "minimax-h3",
+      "name": "MiniMax-H3",
+      "provider": "minimax",
+      "type": "video",
+      "resolutions": [
+        "720p",
+        "768p",
+        "1080p",
+        "2k"
+      ],
+      "capabilities": {
+        "maxResolution": "2k",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9",
+          "adaptive"
+        ],
+        "supportsReference": true,
+        "maxReferences": 9,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 3,
+        "supportsCameraControl": false
+      },
+      "description": "MiniMax旗舰视频模型，首尾帧及多模态参考生视频",
+      "isNew": false
+    },
+    {
+      "id": "kling-v3",
+      "name": "可灵 v3",
+      "provider": "kling",
+      "type": "video",
+      "resolutions": [
+        "720p"
+      ],
+      "capabilities": {
+        "maxResolution": "720p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supportsReference": false,
+        "maxReferences": 0,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          3,
+          5,
+          8,
+          10,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [
+          "std",
+          "pro"
+        ],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": true
+      },
+      "description": "支持多镜头视频生成，画面连贯自然",
+      "isNew": false
+    },
+    {
+      "id": "kling-v3-omni",
+      "name": "可灵 v3 OmniVideo",
+      "provider": "kling",
+      "type": "video",
+      "resolutions": [
+        "720p"
+      ],
+      "capabilities": {
+        "maxResolution": "720p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supportsReference": true,
+        "maxReferences": 7,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          3,
+          5,
+          8,
+          10,
+          15
+        ],
+        "supportsAudio": true,
+        "modes": [
+          "std",
+          "pro"
+        ],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": true,
+        "supportsVideoReference": true,
+        "maxVideoReferences": 1,
+        "supportsCameraControl": false
+      },
+      "description": "支持主体与视频参考控制，生成效果更真实",
+      "isNew": false
+    },
+    {
+      "id": "happyhorse-t2v",
+      "name": "快马文生视频",
+      "provider": "happyhorse",
+      "type": "video",
+      "resolutions": [
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supportsReference": false,
+        "maxReferences": 0,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          3,
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "HappyHorse 文生视频，支持文本驱动视频生成。",
+      "isNew": false
+    },
+    {
+      "id": "happyhorse-i2v",
+      "name": "快马图生视频",
+      "provider": "happyhorse",
+      "type": "video",
+      "resolutions": [
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supportsReference": false,
+        "maxReferences": 0,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          3,
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": true,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "HappyHorse 参考图生视频，支持高质量图像驱动视频生成。",
+      "isNew": false
+    },
+    {
+      "id": "happyhorse-r2v",
+      "name": "快马参考生视频",
+      "provider": "happyhorse",
+      "type": "video",
+      "resolutions": [
+        "720p",
+        "1080p"
+      ],
+      "capabilities": {
+        "maxResolution": "1080p",
+        "aspectRatios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supportsReference": true,
+        "maxReferences": 9,
+        "supportsStyleTransfer": false,
+        "supportsInpainting": false,
+        "durations": [
+          3,
+          4,
+          5,
+          6,
+          8,
+          10,
+          12,
+          15
+        ],
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "HappyHorse 参考生视频，支持高质量图像驱动视频生成。",
+      "isNew": false
+    }
+  ]
+}

@@ -1,0 +1,450 @@
+{
+  "schema_version": 1,
+  "tested_date": "2026-10-08",
+  "environment": "Codex on macOS",
+  "scope": "Representative real requests; catalog choices and local validation are distinct from paid execution. MCP does not attest served-model identity.",
+  "cases": [
+    {
+      "model": "doubao-seedance-2-0",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 560,
+        "height": 752,
+        "pixel_ratio": "35:47",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "doubao-seedance-2-0-fast",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0-fast",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 560,
+        "height": 752,
+        "pixel_ratio": "35:47",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "doubao-seedance-2-0-mini",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0-mini",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 560,
+        "height": 752,
+        "pixel_ratio": "35:47",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "doubao-seedance-2-5",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-5",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "reference",
+      "reference_count": 1,
+      "actual_output": {
+        "width": 560,
+        "height": 752,
+        "pixel_ratio": "35:47",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.064,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "doubao-seedance-2-0-fast",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0-fast",
+        "aspect_ratio": "adaptive",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "first",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 496,
+        "height": 864,
+        "pixel_ratio": "31:54",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": null
+      }
+    },
+    {
+      "model": "doubao-seedance-2-0-fast",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0-fast",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "first",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 560,
+        "height": 752,
+        "pixel_ratio": "35:47",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "doubao-seedance-2-0-fast",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-0-fast",
+        "aspect_ratio": "adaptive",
+        "resolution": "480p",
+        "duration": 4
+      },
+      "reference_mode": "first-last",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 496,
+        "height": 864,
+        "pixel_ratio": "31:54",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.096,
+        "exact_requested_ratio": null
+      }
+    },
+    {
+      "model": "gpt-image-2.5-flare",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "gpt-image-2.5-flare",
+        "aspect_ratio": "3:4",
+        "resolution": "4K",
+        "num": 1
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 2480,
+        "height": 3312,
+        "pixel_ratio": "155:207",
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "gpt-image-2",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "gpt-image-2",
+        "aspect_ratio": "3:4",
+        "resolution": "1K",
+        "num": 1
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 960,
+        "height": 1280,
+        "pixel_ratio": "3:4",
+        "frame_rate": "25/1",
+        "video_duration_seconds": null,
+        "container_duration_seconds": null,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "gpt-image-2.5-flare",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "gpt-image-2.5-flare",
+        "aspect_ratio": "3:4",
+        "resolution": "1K",
+        "num": 1
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 960,
+        "height": 1280,
+        "pixel_ratio": "3:4",
+        "frame_rate": "25/1",
+        "video_duration_seconds": null,
+        "container_duration_seconds": null,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "gpt-image-2.5-sunburst",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "gpt-image-2.5-sunburst",
+        "aspect_ratio": "3:4",
+        "resolution": "1K",
+        "num": 1
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 960,
+        "height": 1280,
+        "pixel_ratio": "3:4",
+        "frame_rate": "25/1",
+        "video_duration_seconds": null,
+        "container_duration_seconds": null,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "happyhorse-i2v",
+      "status": "uncertain",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "happyhorse-i2v",
+        "aspect_ratio": "3:4",
+        "resolution": "720p",
+        "duration": 3
+      },
+      "reference_mode": "first",
+      "reference_count": 0,
+      "error": {
+        "code": "SUBMISSION_UNCERTAIN",
+        "history_match_verified": false
+      }
+    },
+    {
+      "model": "happyhorse-r2v",
+      "status": "uncertain",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "happyhorse-r2v",
+        "aspect_ratio": "3:4",
+        "resolution": "720p",
+        "duration": 3
+      },
+      "reference_mode": "reference",
+      "reference_count": 1,
+      "error": {
+        "code": "SUBMISSION_UNCERTAIN",
+        "history_match_verified": false
+      }
+    },
+    {
+      "model": "happyhorse-t2v",
+      "status": "uncertain",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "happyhorse-t2v",
+        "aspect_ratio": "3:4",
+        "resolution": "720p",
+        "duration": 3
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "error": {
+        "code": "SUBMISSION_UNCERTAIN",
+        "history_match_verified": false
+      }
+    },
+    {
+      "model": "kling-v3",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "kling-v3",
+        "aspect_ratio": "9:16",
+        "resolution": "720p",
+        "duration": 3
+      },
+      "reference_mode": "first",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 720,
+        "height": 1280,
+        "pixel_ratio": "9:16",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 3.041667,
+        "container_duration_seconds": 3.041667,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "kling-v3-omni",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "kling-v3-omni",
+        "aspect_ratio": "9:16",
+        "resolution": "720p",
+        "duration": 3
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 720,
+        "height": 1280,
+        "pixel_ratio": "9:16",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 3.041667,
+        "container_duration_seconds": 3.041667,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "minimax-h3",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "minimax-h3",
+        "aspect_ratio": "3:4",
+        "resolution": "720p",
+        "duration": 4
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 768,
+        "height": 1024,
+        "pixel_ratio": "3:4",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.458333,
+        "container_duration_seconds": 4.458333,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "nano-banana-pro",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "nano-banana-pro",
+        "aspect_ratio": "3:4",
+        "resolution": "1K",
+        "num": 1
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 896,
+        "height": 1200,
+        "pixel_ratio": "56:75",
+        "frame_rate": "25/1",
+        "video_duration_seconds": null,
+        "container_duration_seconds": null,
+        "exact_requested_ratio": false
+      }
+    },
+    {
+      "model": "nano-banana2",
+      "status": "transport_not_advertised",
+      "paid_action": false
+    },
+    {
+      "model": "nano-banana2-lite",
+      "status": "transport_not_advertised",
+      "paid_action": false
+    },
+    {
+      "model": "doubao-seedance-2-5",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "doubao-seedance-2-5",
+        "aspect_ratio": "3:4",
+        "resolution": "1080p",
+        "duration": 4
+      },
+      "reference_mode": "reference",
+      "reference_count": 1,
+      "actual_output": {
+        "width": 1248,
+        "height": 1664,
+        "pixel_ratio": "3:4",
+        "frame_rate": "24/1",
+        "video_duration_seconds": 4.041667,
+        "container_duration_seconds": 4.064,
+        "exact_requested_ratio": true
+      }
+    },
+    {
+      "model": "seedream-5-0",
+      "status": "transport_not_advertised",
+      "paid_action": false
+    },
+    {
+      "model": "seedream-5-0-lite",
+      "status": "transport_not_advertised",
+      "paid_action": false
+    },
+    {
+      "model": "wan3.0-video",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "parameters": {
+        "model": "wan3.0-video",
+        "aspect_ratio": "3:4",
+        "resolution": "480p",
+        "duration": 2
+      },
+      "reference_mode": "text",
+      "reference_count": 0,
+      "actual_output": {
+        "width": 554,
+        "height": 740,
+        "pixel_ratio": "277:370",
+        "frame_rate": "30/1",
+        "video_duration_seconds": 2,
+        "container_duration_seconds": 2,
+        "exact_requested_ratio": false
+      }
+    }
+  ]
+}

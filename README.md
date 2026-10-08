@@ -48,3 +48,19 @@ sealseek-media update install --yes --json
 ```
 
 `SEALSEEK_MEDIA_AUTO_UPDATE=0` disables automatic updates for the current process. Automatic installation uses npm with lifecycle scripts disabled and never changes authentication or Agent provider-routing rules.
+
+## Video reference workflow
+
+Use `video guide --model ID --json` and `--reference` when an image supplies visual identity or appearance. `--first`/`--last` express exact frame constraints. Seedance 2.5 supports reference-image input and lacks first/last-frame support in the current provider catalog. Choose a compatible model for a strict frame requirement.
+
+After a failure, use `task diagnose ID --json`; sanitized provider errors are retained in task records and ordinary `get/wait` output. Diagnosis never replays generation. `task inspect ID --json` verifies local artifact hashes and obtains actual video specifications through ffprobe when installed. Live tool schema validation does not prove provider acceptance; actual pixel dimensions may differ slightly from the requested ratio.
+
+## Model parameters
+
+```bash
+sealseek-media models list --live --json
+sealseek-media models show MODEL_ID --live --json
+sealseek-media models estimate MODEL_ID --resolution VALUE --json
+```
+
+The catalog covers 8 image and 11 video models as of 2026-10-08, including allowed resolutions, ratios, duration choices, reference limits and model-specific modes. Generation preparation refreshes the catalog and checks it against the live MCP schema. The current MCP image tool advertises four of the eight desktop image models. Video model fields are strings; schema acceptance does not attest served-model identity. Audio controls, video/audio references, quality modes, camera controls and inpainting masks are cataloged as desktop features without current CLI transport support. Unsupported requirements produce structured errors instead of being silently discarded. See the bundled Skill’s `references/models.md` for the complete parameter tables. Read-only cost estimates are pricing evidence, not generation compatibility tests.

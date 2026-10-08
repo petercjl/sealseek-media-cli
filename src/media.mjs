@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { requireValue, MediaError, secureUrl, hash } from './core.mjs';
 import { toolFor, validateArguments, call } from './mcp.mjs';
+import { validateModel } from './models.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
 export async function reference(value) {
@@ -15,31 +16,28 @@ export async function reference(value) {
   requireValue(valid, 'INVALID_REFERENCE', 'The image content does not match its extension.');
   return { file, mime, digest: hash(bytes), size: stat.size };
 }
-export async function prepare(kind, options, tools) {
+export async function prepare(kind, options, tools, catalog) {
   requireValue(['image','video'].includes(kind), 'INVALID_INPUT', 'Expected image or video.');
   requireValue(!(options.prompt && options['prompt-file']), 'INVALID_INPUT', 'Use prompt or prompt-file once.');
   const prompt = options['prompt-file'] ? await fs.readFile(path.resolve(options['prompt-file']), 'utf8') : options.prompt;
   requireValue(typeof prompt === 'string' && prompt.trim(), 'INVALID_INPUT', 'A prompt is required.');
   requireValue(options.model, 'INVALID_INPUT', 'Specify a model returned by capabilities --live.');
+  const contract=validateModel(kind,options,{tools,catalog});
   const args = { prompt: prompt.trim(), model: options.model };
-  if (options.ratio) args.aspect_ratio = options.ratio;
-  if (options.resolution) args.resolution = options.resolution;
+  if (!options.size) {args.aspect_ratio=options.ratio||contract.defaults.ratio;args.resolution=options.resolution||contract.defaults.resolution;}
+  else {if(options.ratio)args.aspect_ratio=options.ratio;if(options.resolution)args.resolution=options.resolution;}
   if (options.size) { requireValue(kind === 'image', 'FEATURE_UNSUPPORTED', 'Pixel size is available for images only.'); args.size = options.size; }
   for (const [flag, name] of [['count','num'],['duration','duration']]) if (options[flag] !== undefined) {
     const value = Number(options[flag]); requireValue(Number.isInteger(value) && value > 0, 'INVALID_INPUT', `${flag} must be a positive integer.`);
     requireValue(kind === (flag === 'count' ? 'image' : 'video'), 'FEATURE_UNSUPPORTED', `${flag} is not supported for ${kind}.`); args[name] = value;
   }
-  // Conservative per-model limits supplement schemas containing descriptive-only bounds.
+  // Provider catalog choices supplement descriptive-only MCP schemas.
   if (kind === 'image') {
     args.num ??= 1;
     requireValue(args.num <= 4, 'FEATURE_UNSUPPORTED', 'Generate at most four images per request.');
-    requireValue(!args.resolution || ['1K','2K'].includes(args.resolution), 'FEATURE_UNSUPPORTED', 'This desktop image contract supports 1K or 2K.');
-    if (args.size) requireValue(/^\d+x\d+$/.test(args.size), 'INVALID_INPUT', 'Pixel size must use WxH.');
+    if (args.size) requireValue(/^[1-9]\d*x[1-9]\d*$/.test(args.size), 'INVALID_INPUT', 'Pixel size must use positive integers WxH.');
   } else {
-    args.duration ??= 5;
-    const max = options.model === 'doubao-seedance-2-5' ? 30 : 15;
-    requireValue(args.duration >= 4 && args.duration <= max, 'FEATURE_UNSUPPORTED', `This video contract supports 4-${max} seconds.`);
-    requireValue(!args.resolution || (max === 30 ? ['480p','720p'] : ['480p','720p','1080p']).includes(args.resolution), 'FEATURE_UNSUPPORTED', 'Unsupported video resolution.');
+    args.duration ??= contract.defaults.duration;
   }
   const refs = await Promise.all((options.reference || []).map(reference));
   if (refs.length) args.reference_images = refs.map(r => r.url || 'https://reference.invalid/pending-upload.png');
@@ -47,10 +45,9 @@ export async function prepare(kind, options, tools) {
   requireValue(kind === 'video' || (!first && !last), 'FEATURE_UNSUPPORTED', 'First and last frames are video inputs.');
   if (first) args.first_frame_image = first.url || 'https://reference.invalid/pending-upload.png';
   if (last) args.last_frame_image = last.url || 'https://reference.invalid/pending-upload.png';
-  requireValue(refs.length <= (kind === 'video' ? 9 : 16), 'FEATURE_UNSUPPORTED', 'Too many reference images for this contract.');
   const tool = toolFor(tools, `generate_${kind}`); validateArguments(tool, args);
   if ([...refs, first, last].some(r => r?.file)) toolFor(tools, 'create_upload_urls');
-  return { kind, tool: tool.name, args, refs, first, last, output: options.output ? path.resolve(options.output) : null };
+  return { kind, tool: tool.name, args, refs, first, last, model_contract:contract, output: options.output ? path.resolve(options.output) : null };
 }
 function records(values, accept, output = []) {
   for (const value of values) {
@@ -121,5 +118,7 @@ export async function execute(connection, request, timeout) {
   const values = await call(connection, request.tool, args, timeout);
   const urls = mediaUrls(values, request.kind);
   requireValue(urls.length, 'OUTPUT_CONTRACT_FAILED', 'The generation tool returned no usable media URL. Inspect history before resubmitting.');
-  return { urls, requested_model: request.args.model, actual_model: null, count: urls.length };
+  const messages=values.filter(v=>typeof v==='string').join('\n');
+  const amount=/扣费[：:]\s*(\d+(?:\.\d+)?)\s*积分/.exec(messages);
+  return { urls, requested_model: request.args.model, actual_model: null, count: urls.length,cost:amount?{amount:Number(amount[1]),unit:'SealSeek credits'}:null };
 }
