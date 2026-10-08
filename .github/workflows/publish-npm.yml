@@ -37,6 +37,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts
       - run: npm run check
+        timeout-minutes: 3
       - run: npm pack --dry-run
   publish:
     needs: qa
@@ -55,7 +56,9 @@ jobs:
         run: npm install --global npm@latest
       - run: npm ci
       - run: npm run check --if-present
+        timeout-minutes: 3
       - run: npm test --if-present
+        timeout-minutes: 3
       - name: Configure release author
         run: |
           git config user.name "github-actions[bot]"

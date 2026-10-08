@@ -13,7 +13,7 @@ import {hash} from '../src/core.mjs';
 const active={status:'Active',compliant:true,assetId:'asset-test',assetUri:'asset://asset-test'};
 async function fixture(run,fn){
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-review-'));
- const calls=[];const server=http.createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;const call={route:req.url,data:body?JSON.parse(body):null};calls.push(call);try{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code:200,data:await run(call,calls)}));}catch(e){res.statusCode=500;res.end(JSON.stringify({code:500,msg:e.message}));}});
+ const calls=[];const server=http.createServer(async(req,res)=>{res.setHeader('Connection','close');let body='';for await(const p of req)body+=p;const call={route:req.url,data:body?JSON.parse(body):null};calls.push(call);try{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code:200,data:await run(call,calls)}));}catch(e){res.statusCode=500;res.end(JSON.stringify({code:500,msg:e.message}));}});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const c={cfg:{url:new URL('http://127.0.0.1:'+server.address().port),headers:{}},tools:toolsFor(CATALOG)};
  try{await fn(c,{calls,cacheDirectory:dir});}finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true});}
@@ -32,8 +32,8 @@ test('failed, malformed and pending reviews never become raw reference fallbacks
   await fixture(()=>result,async(c,o)=>{await assert.rejects(reviewReference(c,{url:'https://example.com/r.png'},{...o,upload:async()=> 'https://example.com/r.png',timeout:code==='ASSET_REVIEW_PENDING'?3000:30000,interval:3000}),{code});assert(o.calls.every(v=>!v.route.includes('/tasks/generate')));});
  }
 });
-test('lost review POST is not replayed and reports that video has not been submitted',async()=>{
- let posts=0;const server=http.createServer(req=>{posts++;req.socket.destroy();});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+test('unreadable review response is not replayed and reports that video has not been submitted',async()=>{
+ let posts=0;const server=http.createServer((req,res)=>{posts++;res.setHeader('Connection','close');res.end('invalid provider response');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-uncertain-review-'));
  try{await assert.rejects(reviewReference({cfg:{url:new URL('http://127.0.0.1:'+server.address().port),headers:{}}},{url:'https://example.com/uncertain.png'},{cacheDirectory:dir,upload:async()=> 'https://example.com/uncertain.png'}),e=>e.code==='ASSET_REVIEW_UNCERTAIN'&&e.details.generation_submitted===false);assert.equal(posts,1);}
  finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true});}
