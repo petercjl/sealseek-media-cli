@@ -6,7 +6,7 @@ import { ROOT, META, exists, requireValue, hash, createJson, readJson, stateRoot
 
 export const SOURCE = path.join(ROOT, 'skills', 'sealseek-media');
 const MARKER = '.sealseek-media-install.json';
-export function renderSkill(text, agent) { return agent === 'workbuddy' ? text.replace(/^---\n/, '---\ndisable-model-invocation: true\n') : text; }
+export function renderSkill(text, agent) { return agent === 'workbuddy' ? text.replace(/^---(\r?\n)/, (_,newline) => '---'+newline+'disable-model-invocation: true'+newline) : text; }
 export function destination(agent, custom) {
   const roots = { codex:'.codex', workbuddy:'.workbuddy', sealseek:'.sealseek' };
   requireValue(agent in roots, 'UNKNOWN_TARGET', 'Supported agents: codex, workbuddy, sealseek.');

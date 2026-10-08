@@ -5,6 +5,14 @@ import path from 'node:path';
 import os from 'node:os';
 import { install, status, hashes, SOURCE, renderSkill } from '../src/skills.mjs';
 
+test('WorkBuddy explicit invocation metadata survives LF and Windows CRLF',()=>{
+ for(const newline of ['\n','\r\n']){
+  const source=['---','name: fixture','---','Body'].join(newline);
+  assert.equal(renderSkill(source,'workbuddy'),source.replace('---'+newline,'---'+newline+'disable-model-invocation: true'+newline));
+  assert.equal(renderSkill(source,'codex'),source);
+ }
+});
+
 test('install ownership, explicit WorkBuddy policy, edits, backups, locked updates, metadata preservation',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-install-test-')),target=path.join(dir,'skill');
  const previous=process.env.SEALSEEK_MEDIA_STATE_DIR;process.env.SEALSEEK_MEDIA_STATE_DIR=path.join(dir,'state');
