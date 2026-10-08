@@ -6,7 +6,7 @@ import { ROOT, META, exists, requireValue, hash, createJson, readJson, stateRoot
 
 export const SOURCE = path.join(ROOT, 'skills', 'sealseek-media');
 const MARKER = '.sealseek-media-install.json';
-export function renderSkill(text, agent) { return agent === 'workbuddy' ? text.replace(/^---(\r?\n)/, (_,newline) => '---'+newline+'disable-model-invocation: true'+newline) : text; }
+export function renderSkill(text, agent) { return text; }
 export function destination(agent, custom) {
   const roots = { codex:'.codex', workbuddy:'.workbuddy', sealseek:'.sealseek' };
   requireValue(agent in roots, 'UNKNOWN_TARGET', 'Supported agents: codex, workbuddy, sealseek.');
@@ -36,7 +36,7 @@ export async function status(agent, custom) {
   const managed=manifest?.owner===META.name;
   const actual=stat.isDirectory() ? await hashes(target) : {};
   const edited=managed && (Object.entries(manifest.hashes).some(([name,digest])=> actual[name]!==digest && name !== path.join('agents','openai.yaml')) || Object.keys(actual).some(name=>!(name in manifest.hashes)));
-  return { ok:true,agent,destination:target,installed:true,managed,current:managed && !edited && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
+  return { ok:true,agent,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && manifest.source===SOURCE && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
 }
 export async function install(agent, options = {}) {
   const rename = options.rename || fs.rename;
@@ -58,7 +58,11 @@ export async function install(agent, options = {}) {
   await fs.cp(SOURCE,staging,{ recursive:true,errorOnExist:true,force:false });
   const skillText = await fs.readFile(path.join(staging,'SKILL.md'),'utf8');
   await fs.writeFile(path.join(staging,'SKILL.md'),renderSkill(skillText,agent));
-  if (backup && await exists(path.join(target,'agents','openai.yaml'))) await fs.copyFile(path.join(target,'agents','openai.yaml'),path.join(staging,'agents','openai.yaml'));
+  if (backup && await exists(path.join(target,'agents','openai.yaml'))) {
+    const oldManifest=await readJson(path.join(target,MARKER));
+    const name=path.join('agents','openai.yaml');
+    if(hash(await fs.readFile(path.join(target,name)))!==oldManifest.hashes[name]) await fs.copyFile(path.join(target,name),path.join(staging,name));
+  }
   const digest=await hashes(staging);
   await createJson(path.join(staging,MARKER),{ owner:META.name,version:META.version,source:SOURCE,hashes:digest });
   let retired;

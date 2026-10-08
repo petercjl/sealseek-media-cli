@@ -1,6 +1,6 @@
 # CLI contract
 
-For explicit SealSeek requests, inspect `sealseek-media capabilities --live --json`. Use exact advertised model IDs. Model availability and descriptions can change.
+For requests routed to SealSeek, inspect `sealseek-media capabilities --live --json`. Use exact advertised model IDs. Model availability and descriptions can change.
 
 Authentication: `auth status --json` reports source and local expiry metadata without printing secrets. `auth status --live --json` verifies a real read-only provider call. Missing credentials return `AUTH_REQUIRED`, locally expired JWTs return `AUTH_EXPIRED`, and server-side rejection (including HTTP 200 with body code 401) returns `AUTH_REJECTED`.
 
@@ -13,7 +13,7 @@ sealseek-media image generate --model gpt-image-2 --prompt "A ceramic mug under 
 sealseek-media video generate --model doubao-seedance-2-0 --prompt "Camera slowly pushes toward a ceramic mug" --duration 4 --resolution 480p --output ./media --dry-run --json
 ```
 
-For human-authorized generation, replace `--dry-run` with `--via sealseek --submit`. Submission returns a local task UUID. Follow that task:
+For human-authorized generation, replace `--dry-run` with `--submit`. The legacy `--via sealseek` flag remains optional for compatibility. Submission returns a local task UUID. Follow that task:
 
 ```bash
 sealseek-media task get TASK_UUID --json

@@ -59,12 +59,14 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const file=path.join(dir,'参考图.png');await fs.writeFile(file,png);
   const base=['image','generate','--prompt','测试红杯','--model','test-image','--reference',file,'--output',path.join(dir,'out'),'--json'];
   const dry=await cli(base);assert.equal(dry.dry_run,true);assert.equal(generations,0);assert.equal(uploads,0);
-  await assert.rejects(cli([...base,'--submit']));assert.equal(generations,0);
-  const job=await cli([...base,'--submit','--via','sealseek']);assert.equal(job.status,'queued');
+  await assert.rejects(cli([...base,'--submit','--dry-run']));assert.equal(generations,0);
+  const job=await cli([...base,'--submit']);assert.equal(job.status,'queued');
   let done;for(let i=0;i<30;i++){done=await cli(['task','get',job.task_id]);if(done.status==='succeeded')break;await new Promise(r=>setTimeout(r,100));}
   assert.equal(done.status,'succeeded');assert.equal(generations,1);assert.equal(uploads,1);assert.equal(done.artifacts[0].size,png.length);
   const permissions=(await fs.stat(path.join(dir,'state/jobs',`${job.task_id}.json`))).mode&0o777;if(process.platform!=='win32')assert.equal(permissions,0o600);
   const duplicate=await cli([...base,'--submit','--via','sealseek']);assert.equal(duplicate.task_id,job.task_id);assert.equal(duplicate.deduplicated,true);assert.equal(generations,1);
+  await assert.rejects(cli(['image','upload',file]));assert.equal(uploads,1);
+  const uploaded=await cli(['image','upload',file,'--submit']);assert(uploaded.url);assert.equal(uploads,2);assert.equal(generations,1);
   await assert.rejects(cli(['task','download',job.task_id,'--output',path.join(dir,'out')]));assert.deepEqual(await fs.readFile(done.artifacts[0].path),png);
   await assert.rejects(cli(['task','get','../../credentials']));
   const bad=path.join(dir,'bad.png');await fs.writeFile(bad,'not an image');await assert.rejects(reference(bad),{code:'INVALID_REFERENCE'});

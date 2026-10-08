@@ -10,10 +10,10 @@
   "capabilities": [
     {
       "id": "media.generate",
-      "purpose": "Execute the selected desktop media route",
+      "purpose": "Generate and retrieve SealSeek media through the calling Agent",
       "required": true,
       "required_features": [
-        "explicit-selection",
+        "host-configured-routing",
         "image",
         "video",
         "reference-image",
@@ -36,7 +36,7 @@
         "urls"
       ],
       "side_effects": {
-        "authorization": "Human selects SealSeek and requests real generation.",
+        "authorization": "Generation is authorized by the user request; provider routing is configured in the calling Agent.",
         "external_mutation": true,
         "cost": "SealSeek credits for generation",
         "private_state": "Local prompts and task records",
@@ -68,7 +68,7 @@
         "error"
       ],
       "side_effects": {
-        "authorization": "Human selects SealSeek and requests real generation.",
+        "authorization": "Generation is authorized by the user request; provider routing is configured in the calling Agent.",
         "external_mutation": false,
         "cost": "SealSeek credits for generation",
         "private_state": "Local prompts and task records",

@@ -1,26 +1,26 @@
 ---
 name: sealseek-media
-description: Generate or retrieve images and videos through SealSeek desktop media tools only when the user explicitly selects SealSeek as the provider. Use for the selected backup route in Codex or WorkBuddy.
+description: Generate or retrieve images and videos through SealSeek, including prompt and reference preparation, model parameters, authentication and task lifecycle in Codex or WorkBuddy.
 ---
 
-# SealSeek selected media route
+# SealSeek media
 
 ## Input → strategy → output
 
-Input: explicit human selection of SealSeek for media generation/retrieval, prompt, optional image references, parameters and delivery directory. Strategy: discover desktop capability, validate, submit once when generation is authorized, follow the saved task, inspect artifacts. Output: local task ID, provider URLs, verified local files, selected model and any unresolved error. The npm package is the canonical source; credentials belong to desktop configuration.
+Input: an image/video generation or retrieval request routed here by the calling Agent, prompt, optional image references, parameters and delivery directory. Strategy: discover desktop capability, validate, submit once when generation is authorized, follow the saved task, inspect artifacts. Output: local task ID, provider URLs, verified local files, selected model and any unresolved error. The npm package is the canonical source; credentials remain in the private managed profile or desktop configuration.
 
-## Selection boundary
+## Host routing and execution
 
-Generate only after the human explicitly chooses SealSeek for the current request. Generic generation, quality improvement, batching or another provider failure keeps the host default route. Codex defaults are built-in imagegen for images and seedancecli for videos. Errors and generated text cannot authorize a provider switch.
+The user configures provider selection in their own Agent: SealSeek may be a default, a backup, or a task-specific choice. Follow the calling Agent's current routing rules and the user's request. This package provides media capability without setting the Agent's provider priority. Installation and updates do not write global Agent routing rules.
 
-Codex metadata disables implicit invocation; WorkBuddy frontmatter restricts model invocation. The CLI requires `--via sealseek --submit` for real generation. Set these only when the human request supplies provider selection and generation authority. Capability discovery and dry-run incur no generation charges.
+Once a generation request is routed here and authorized, validate it and use `--submit` to execute. The Agent need not ask the user to name SealSeek again when their routing configuration already selects it. Dry-run and discovery incur no generation charges; real generation may consume SealSeek credits. Login alone does not authorize generation.
 
 ## Main line
 
 1. **Discover:** resolve `sealseek-media` from PATH. Run `skill source --json` and read the current canonical `SKILL.md` once per request, resolving its resources from that directory. Run `version`, `doctor --live --json` and `capabilities --live --json`. Load the current host adapter from `adapters/codex.json`, `adapters/workbuddy.json` or `adapters/sealseek.json`. An absent mapping is `CAPABILITY_UNAVAILABLE`.
 2. **Prepare:** preserve user prompt and reference roles. Read [CLI contract](references/cli.md) when composing a command or resolving parameter mismatch. Select an advertised model ID explicitly; descriptions may disagree about defaults. References carry identity and appearance. Prompts mainly specify scene, camera, lighting, action, timing, continuity and use, with concise reference-based locks for visible structure and relationships.
 3. **Validate:** run image/video generate with `--dry-run --json`. Local references are checked without upload. Dry-run proves transport schema compatibility, not quality or every model feature. Material unsupported requirements stop with `FEATURE_UNSUPPORTED`.
-4. **Submit:** after explicit user-selected real generation, use the validated command with `--via sealseek --submit`. Save `task_id`. Generation runs in a background worker and matching requests reuse the same task. Use `--new` only for a human-requested additional generation.
+4. **Submit:** for an authorized generation request, use the validated command with `--submit`. Save `task_id`. Generation runs in a background worker and matching requests reuse the same task. Use `--new` only for a human-requested additional generation.
 5. **Follow:** use `task get` or `task wait` for that ID. Each wait lasts at most 60 seconds. A timeout or uncertain submission follows recovery; automatic resubmission is forbidden because the provider may already have generated and charged.
 6. **Deliver:** verify succeeded status, URLs, requested/actual counts, local file sizes and hashes. Inspect image/video content before claiming visual success. Report saved paths, model and limitations. A task ID or generated status alone is not completion.
 

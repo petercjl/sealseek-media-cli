@@ -15,7 +15,7 @@
       "normalization": "CLI JSON: ok, task_id, status, artifacts, urls, errors. Cost can be unknown.",
       "evidence": [],
       "features": [
-        "explicit-selection",
+        "host-configured-routing",
         "image",
         "video",
         "reference-image",
@@ -62,5 +62,6 @@
     "macos": "implemented",
     "windows": "unresolved"
   },
-  "invocation_policy": "explicit-only"
+  "invocation_policy": "host-configured",
+  "host_policy": "User configures provider priority in their Agent. Package installation preserves those routing rules."
 }

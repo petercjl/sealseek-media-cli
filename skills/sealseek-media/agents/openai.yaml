@@ -1,6 +1,4 @@
 interface:
-  display_name: "SealSeek 备选媒体工具"
-  short_description: "仅在用户明确选择 SealSeek 时生成或获取图片和视频素材"
-  default_prompt: "Use $sealseek-media to generate media through the explicitly selected SealSeek route."
-policy:
-  allow_implicit_invocation: false
+  display_name: "SealSeek 媒体工具"
+  short_description: "通过 SealSeek 生成和获取图片、视频，支持参考素材、模型参数与任务跟踪"
+  default_prompt: "Use $sealseek-media to generate or retrieve images and videos through SealSeek."

@@ -11,7 +11,7 @@ import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
 
 const HELP=`sealseek-media ${META.version}
-Explicitly selected SealSeek desktop media generation. Node.js >=22.
+SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
 
   version
   doctor [--live] --json
@@ -23,8 +23,8 @@ Explicitly selected SealSeek desktop media generation. Node.js >=22.
     [--ratio RATIO] [--resolution VALUE] [--size WxH] [--count N]
     [--duration SECONDS] [--first FILE_OR_URL] [--last FILE_OR_URL]
     [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
-    [--dry-run | --via sealseek --submit] [--new] --json
-  image upload FILE --via sealseek --submit --json
+    [--dry-run | --submit] [--new] --json
+  image upload FILE --submit --json
   task get ID --json
   task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
   task download ID --output DIR --json  (uses stored URLs, never regenerates)
@@ -36,7 +36,8 @@ Explicitly selected SealSeek desktop media generation. Node.js >=22.
 
 Desktop discovery: --config FILE, --server NAME. These override the current
 user's SealSeek desktop configuration. Credentials stay outside this package.
-Generation defaults to dry-run. --submit additionally requires --via sealseek.
+Generation defaults to dry-run. --submit executes a real generation request.
+Legacy --via sealseek is accepted for compatibility and is optional.
 Same requests reuse the saved local task; --new explicitly creates another.
 `;
 const common=['json','config','server'];
@@ -61,7 +62,7 @@ async function main(argv) {
   if (command === 'doctor' || command === 'capabilities') {
     const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const manifest=JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8'));
-    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'explicit-only',manifest});
+    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',manifest});
     let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
     const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:process.platform==='darwin', ...(command==='capabilities'?{manifest}:{})};
     if (options.live) return withConnection(options,c=>out({...result,tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),server_info:c.client.getServerVersion()}));
@@ -76,7 +77,8 @@ async function main(argv) {
   }
   if (command==='image' && action==='upload') {
     const {options,args}=parse(rest,[...common,'via','submit']); requireValue(args.length===1,'INVALID_INPUT','Provide one image file.');
-    requireValue(options.via==='sealseek' && options.submit,'EXPLICIT_SELECTION_REQUIRED','Uploading requires --via sealseek --submit.');
+    requireValue(options.submit,'SUBMIT_REQUIRED','Uploading requires --submit.');
+    requireValue(!options.via || options.via==='sealseek','INVALID_INPUT','This CLI executes SealSeek media requests.');
     const ref=await reference(args[0]); return withConnection(options,async c=>out({ok:true,url:await upload(c,ref)}));
   }
   if (command==='task') {

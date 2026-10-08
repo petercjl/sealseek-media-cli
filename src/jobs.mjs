@@ -28,7 +28,8 @@ export function summary(job) {
   return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, artifacts: job.files || [], urls: job.result?.urls || [], cost: null, ...(job.error ? { error: job.error } : {}), warnings: job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
 }
 export async function submit(request, options) {
-  requireValue(options.via === 'sealseek' && options.submit === true, 'EXPLICIT_SELECTION_REQUIRED', 'Real generation requires --via sealseek --submit after an explicit user selection.');
+  requireValue(options.submit === true, 'SUBMIT_REQUIRED', 'Real generation requires --submit.');
+  requireValue(!options.via || options.via === 'sealseek', 'INVALID_INPUT', 'This CLI executes SealSeek media requests.');
   requireValue(!options['dry-run'], 'INVALID_INPUT', 'Choose dry-run or submit.');
   const timeout = Number(options.timeout || 900);
   requireValue(Number.isInteger(timeout) && timeout >= 10 && timeout <= 3600, 'INVALID_INPUT', 'Timeout must be 10-3600 seconds.');
