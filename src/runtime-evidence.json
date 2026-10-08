@@ -1545,6 +1545,41 @@
           "exact_requested_ratio": false
         }
       ]
+    },
+    {
+      "transport": "infinite-canvas",
+      "model": "kling-v3-omni",
+      "status": "succeeded",
+      "served_model_verified": false,
+      "operation": "generate",
+      "parameters": {
+        "model": "kling-v3-omni",
+        "aspect_ratio": "1:1",
+        "resolution": "720p",
+        "duration": 5
+      },
+      "advanced_parameters": {
+        "multiShot": true
+      },
+      "reference_mode": "image",
+      "reference_count": 1,
+      "actual_outputs": [
+        {
+          "size": 1984921,
+          "hash_verified": true,
+          "media_metadata_available": true,
+          "width": 960,
+          "height": 960,
+          "pixel_ratio": "1:1",
+          "frame_rate": "24/1",
+          "video_duration_seconds": 5.041667,
+          "container_duration_seconds": 5.041667,
+          "requested_ratio": "1:1",
+          "exact_requested_ratio": true,
+          "requested_duration_seconds": 5,
+          "duration_difference_seconds": 0.041667
+        }
+      ]
     }
   ]
 }
