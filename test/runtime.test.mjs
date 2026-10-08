@@ -6,7 +6,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ROOT, publicError, parse } from '../src/core.mjs';
+import { ROOT, publicError, parse,createJson,replaceJob,readJson } from '../src/core.mjs';
 import { prepare, mediaUrls, reference } from '../src/media.mjs';
 const exec = promisify(execFile);
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6bqUAAAAASUVORK5CYII=','base64');
@@ -62,4 +62,14 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const rejected=await cli(['image','generate','--model','gpt-image-2.5-flare','--prompt','reject','--submit']);const failed=await cli(['task','wait',rejected.task_id,'--timeout','5']);assert.equal(failed.status,'failed');assert.equal(failed.error.code,'PROVIDER_FAILURE');
   const diagnosis=await cli(['task','diagnose',rejected.task_id]);assert.equal(diagnosis.provider_error_available,true);assert.match(diagnosis.provider_error.details.provider_text,/adaptive/);assert(!JSON.stringify(diagnosis).includes('private-fixture-secret'));assert.equal(generations,2);
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('atomic state replacement preserves previous content during transient Windows file locks',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-state-lock-')),file=path.join(dir,'state.json');
+ await createJson(file,{owner:'@petercjl/sealseek-media-cli',id:'fixture',status:'pending'});
+ let attempts=0;
+ try {
+  await replaceJob(file,{owner:'@petercjl/sealseek-media-cli',id:'fixture',status:'succeeded'},{rename:async(a,b)=>{attempts++;if(attempts<3){assert.equal((await readJson(file)).status,'pending');throw Object.assign(new Error('locked'),{code:'EPERM'});}await fs.rename(a,b);}});
+  assert.equal(attempts,3);assert.equal((await readJson(file)).status,'succeeded');
+ }finally {await fs.rm(dir,{recursive:true,force:true});}
 });

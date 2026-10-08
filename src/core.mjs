@@ -21,12 +21,17 @@ export async function createJson(p, value) {
   await fs.writeFile(p, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
 }
 // Mutable state is package-owned and validated before each atomic replacement.
-export async function replaceJob(p, value) {
+export async function replaceJob(p, value, {rename=fs.rename} = {}) {
   const current = await readJson(p);
   requireValue(current.owner === META.name && current.id === value.id, 'UNMANAGED_STATE', 'State ownership mismatch.');
   const tmp = `${p}.${crypto.randomUUID()}.tmp`;
   await createJson(tmp, value);
-  await fs.rename(tmp, p);
+  // Windows readers and antivirus can briefly block an atomic replacement.
+  // Keep the old file and complete temporary file intact while retrying rename.
+  for(let attempt=0;;attempt++) {
+    try { await rename(tmp,p);break; }
+    catch(e) { if(!['EPERM','EBUSY','EACCES'].includes(e.code)||attempt>=7)throw e;await new Promise(r=>setTimeout(r,Math.min(20*2**attempt,200))); }
+  }
 }
 export function publicError(e) {
   return { code: e.code && /^[A-Z_]+$/.test(e.code) ? e.code : 'PROVIDER_FAILURE', message: e instanceof MediaError ? e.message : 'Operation failed; inspect desktop authentication and task history before retrying.', ...(e.details ? { details: e.details } : {}) };
