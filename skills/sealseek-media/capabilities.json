@@ -1,0 +1,119 @@
+{
+  "schema": "portable-skill-capabilities",
+  "schema_version": "1.0.0",
+  "skill": "sealseek-media",
+  "target_platforms": [
+    "codex",
+    "workbuddy",
+    "sealseek"
+  ],
+  "capabilities": [
+    {
+      "id": "media.generate",
+      "purpose": "Execute the selected desktop media route",
+      "required": true,
+      "required_features": [
+        "explicit-selection",
+        "image",
+        "video",
+        "reference-image",
+        "dry-run",
+        "task-record",
+        "local-artifact"
+      ],
+      "input_fields": [
+        "kind",
+        "prompt",
+        "model",
+        "references",
+        "parameters",
+        "authorization"
+      ],
+      "output_fields": [
+        "task_id",
+        "status",
+        "artifacts",
+        "urls"
+      ],
+      "side_effects": {
+        "authorization": "Human selects SealSeek and requests real generation.",
+        "external_mutation": true,
+        "cost": "SealSeek credits for generation",
+        "private_state": "Local prompts and task records",
+        "may_cost_money": true
+      },
+      "errors": [
+        "CAPABILITY_UNAVAILABLE",
+        "AUTH_REQUIRED",
+        "FEATURE_UNSUPPORTED",
+        "SUBMISSION_UNCERTAIN",
+        "AUTH_EXPIRED",
+        "AUTH_REJECTED"
+      ]
+    },
+    {
+      "id": "command.execute",
+      "purpose": "Execute the installed CLI",
+      "required": true,
+      "required_features": [
+        "node-runtime",
+        "structured-output"
+      ],
+      "input_fields": [
+        "command",
+        "arguments"
+      ],
+      "output_fields": [
+        "ok",
+        "error"
+      ],
+      "side_effects": {
+        "authorization": "Human selects SealSeek and requests real generation.",
+        "external_mutation": false,
+        "cost": "SealSeek credits for generation",
+        "private_state": "Local prompts and task records",
+        "may_cost_money": false
+      },
+      "errors": [
+        "CAPABILITY_UNAVAILABLE",
+        "AUTH_REQUIRED",
+        "FEATURE_UNSUPPORTED",
+        "SUBMISSION_UNCERTAIN",
+        "AUTH_EXPIRED",
+        "AUTH_REJECTED"
+      ]
+    },
+    {
+      "id": "media.authenticate",
+      "purpose": "Authorize the current user through official QR login",
+      "required": false,
+      "required_features": [
+        "web-login",
+        "expiry-status",
+        "private-credentials",
+        "logout-backup"
+      ],
+      "input_fields": [
+        "human-login-confirmation"
+      ],
+      "output_fields": [
+        "login_id",
+        "login_url",
+        "status",
+        "expires_at"
+      ],
+      "side_effects": {
+        "authorization": "Human explicitly requests login or removal of credentials.",
+        "external_mutation": true,
+        "may_cost_money": false,
+        "private_state": "Managed credential profile and recoverable backups"
+      },
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_EXPIRED",
+        "AUTH_REJECTED",
+        "LOGIN_CONTRACT_FAILED"
+      ]
+    }
+  ]
+}

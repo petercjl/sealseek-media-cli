@@ -1,0 +1,67 @@
+{
+  "schema": "portable-skill-adapter",
+  "schema_version": "1.0.0",
+  "platform": "workbuddy",
+  "mappings": [
+    {
+      "capability_id": "media.generate",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media",
+        "discovery": "PATH; version; doctor --live; capabilities --live"
+      },
+      "status": "implemented",
+      "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
+      "normalization": "CLI JSON: ok, task_id, status, artifacts, urls, errors. Cost can be unknown.",
+      "evidence": [],
+      "features": [
+        "explicit-selection",
+        "image",
+        "video",
+        "reference-image",
+        "dry-run",
+        "task-record",
+        "local-artifact"
+      ]
+    },
+    {
+      "capability_id": "command.execute",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media",
+        "discovery": "PATH; version; doctor --live; capabilities --live"
+      },
+      "status": "implemented",
+      "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
+      "normalization": "CLI JSON: ok, task_id, status, artifacts, urls, errors. Cost can be unknown.",
+      "evidence": [],
+      "features": [
+        "node-runtime",
+        "structured-output"
+      ]
+    },
+    {
+      "capability_id": "media.authenticate",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media auth",
+        "discovery": "auth login/status/logout; user opens returned loopback webpage"
+      },
+      "status": "implemented",
+      "features": [
+        "web-login",
+        "expiry-status",
+        "private-credentials",
+        "logout-backup"
+      ],
+      "evidence": [],
+      "normalization": "Login status and source/expiry metadata; credentials never returned to the Agent."
+    }
+  ],
+  "operating_systems": {
+    "macos": "implemented",
+    "windows": "unresolved"
+  },
+  "invocation_policy": "explicit-only",
+  "host_policy": "disable-model-invocation: true; current-user .workbuddy/skills."
+}

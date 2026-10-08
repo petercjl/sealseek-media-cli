@@ -1,0 +1,37 @@
+{
+  "name": "@petercjl/sealseek-media-cli",
+  "version": "0.1.0",
+  "description": "Explicitly selected SealSeek desktop media generation for Codex and WorkBuddy.",
+  "type": "module",
+  "bin": {
+    "sealseek-media": "bin/sealseek-media.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/petercjl/sealseek-media-cli.git"
+  },
+  "homepage": "https://github.com/petercjl/sealseek-media-cli#readme",
+  "bugs": {"url": "https://github.com/petercjl/sealseek-media-cli/issues"},
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check bin/sealseek-media.mjs && node --test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "ajv": "8.20.0"
+  }
+}
