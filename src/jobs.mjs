@@ -3,8 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { ROOT, META, stateRoot, requireValue, hash, readJson, createJson, replaceJob, publicError } from './core.mjs';
-import { connect } from './mcp.mjs';
-import { execute, download } from './media.mjs';
+import { connect,pollTask } from './canvas.mjs';
+import { execute, download,generationResult } from './media.mjs';
 
 export function jobPath(id) {
   requireValue(/^[0-9a-f]{8}-[0-9a-f-]{27}$/.test(id), 'INVALID_INPUT', 'Expected a local task UUID.');
@@ -25,7 +25,7 @@ export async function getJob(id) {
   return job;
 }
 export function summary(job) {
-  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
+  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, transport:job.request.transport||'legacy-mcp',remote_task_id:job.remote?.remote_task_id||null,canvas_id:job.remote?.canvasId||null,model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
 }
 export async function submit(request, options) {
   requireValue(options.submit === true, 'SUBMIT_REQUIRED', 'Real generation requires --submit.');
@@ -33,7 +33,7 @@ export async function submit(request, options) {
   requireValue(!options['dry-run'], 'INVALID_INPUT', 'Choose dry-run or submit.');
   const timeout = Number(options.timeout || 900);
   requireValue(Number.isInteger(timeout) && timeout >= 10 && timeout <= 3600, 'INVALID_INPUT', 'Timeout must be 10-3600 seconds.');
-  const digest = hash({ kind: request.kind, args: request.args, refs: request.refs, first: request.first, last: request.last });
+  const digest = hash({ kind: request.kind, args: request.args, refs: request.refs, first: request.first, last: request.last,...(request.videoRefs?.length?{videoRefs:request.videoRefs}:{}),...(request.audioRef?{audioRef:request.audioRef}:{}),...(request.operation?{operation:request.operation,edit_params:request.edit_params}:{}) });
   const index = path.join(stateRoot(), 'requests', `${digest}${options.new ? '-' + crypto.randomUUID() : ''}.json`);
   const id = crypto.randomUUID();
   try { await createJson(index, { owner: META.name, id }); }
@@ -55,18 +55,30 @@ export async function worker(id) {
   let connection;
   try {
     connection = await connect(job.configOptions);
-    job.result = await execute(connection, job.request, job.timeout*1000);
+    connection.traceId=job.id;
+    connection.onContext=async context=>{job.remote=context;await replaceJob(p,job);};
+    connection.onSubmitted=async remote=>{job.remote=remote;await replaceJob(p,job);};
+    job.result = job.resume_only?generationResult([await pollTask(connection.cfg,job.remote.remote_task_id,{timeout:job.timeout*1000})],job.request):await execute(connection, job.request, job.timeout*1000);
     // Persist remote output before downloading so download failure never causes regeneration.
     job.status = 'generated'; await replaceJob(p,job);
     if (job.request.output) job.files = await download(job.result.urls, job.request.kind, job.request.output,job.id);
     job.status = 'succeeded';
   } catch (e) {
     job.error = publicError(e);
-    job.status = job.result ? 'download_failed' : ['SUBMISSION_UNCERTAIN','OUTPUT_CONTRACT_FAILED'].includes(e.code) ? 'uncertain' : 'failed';
+    job.status = job.result ? 'download_failed' : ['SUBMISSION_UNCERTAIN','OUTPUT_CONTRACT_FAILED'].includes(e.code)||e.code==='AUTH_REJECTED'&&job.remote?.remote_task_id ? 'uncertain' : 'failed';
   } finally {
     await connection?.close().catch(() => {});
     job.completed_at = new Date().toISOString(); await replaceJob(p,job);
   }
+}
+export async function resumeJob(id){
+  const job=await getJob(id);requireValue(job.remote?.remote_task_id,'FEATURE_UNSUPPORTED','This task has no saved Infinite Canvas task ID. Inspect artifact history.');
+  if(['queued','running','generated','succeeded'].includes(job.status))return {...summary(job),deduplicated:true};
+  requireValue(!job.result,'INVALID_INPUT','This task already has output URLs. Use task download into a fresh directory.');
+  job.resume_only=true;job.status='queued';delete job.error;delete job.pid;delete job.started_at;await replaceJob(jobPath(id),job);
+  const child=spawn(process.execPath,[path.join(ROOT,'bin/sealseek-media.mjs'),'_worker',id],{detached:true,stdio:'ignore',env:process.env});
+  try{await new Promise((r,j)=>{child.once('spawn',r);child.once('error',j);});child.unref();}catch{job.status='uncertain';job.error={code:'WORKER_START_FAILED',message:'Resume worker could not start; the remote task was not resubmitted.'};await replaceJob(jobPath(id),job);}
+  return summary(job);
 }
 export async function waitJob(id, seconds = 30) {
   requireValue(Number.isInteger(seconds) && seconds > 0 && seconds <= 60, 'INVALID_INPUT', 'Wait interval must be 1-60 seconds.');

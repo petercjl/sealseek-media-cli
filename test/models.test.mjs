@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { CATALOG,modelContract,validateModel,validateCatalog } from '../src/models.mjs';
-import { unwrap,call } from '../src/mcp.mjs';
+import { sanitizeProviderText } from '../src/service.mjs';
 import { prepare } from '../src/media.mjs';
 import { inspectFile } from '../src/diagnostics.mjs';
 import { hash } from '../src/core.mjs';
@@ -21,7 +21,7 @@ test('all provider-catalog choices validate and unsupported values fail for all 
  }
  assert.throws(()=>validateCatalog({image:[{id:'broken'}]}),{code:'OUTPUT_CONTRACT_FAILED'});
 });
-test('transport contracts distinguish model support from MCP input exposure',()=>{
+test('transport contracts distinguish model support from transport input exposure',()=>{
  const narrow=[{name:'generate_image',inputSchema:{properties:{model:{enum:['gpt-image-2']},reference_images:{}}}}];
  assert.equal(modelContract('nano-banana2',{tools:narrow}).transport.model_advertised,false);
  assert.throws(()=>validateModel('image',{model:'nano-banana2'},{tools:narrow}),{code:'FEATURE_UNSUPPORTED'});
@@ -37,13 +37,9 @@ test('invalid reference mode rejects before reference IO, upload or submission',
  const request=await prepare('video',{model:'wan3.0-video',prompt:'test',duration:2},tools);assert.equal(request.args.duration,2);
  const image=await prepare('image',{model:'gpt-image-2',prompt:'test',resolution:'4K'},tools);assert.equal(image.args.resolution,'4K');
 });
-test('sanitized provider parameter errors preserve actionable constraint and remove credentials',()=>{
- try{unwrap({isError:true,content:[{type:'text',text:'参数配置不符合任务类型约束，比例必须为adaptive；token=private-token-value Bearer bearer-secret https://secret.example/token?key=secret'}]});assert.fail('must throw');}catch(e){assert.equal(e.code,'PROVIDER_PARAMETER_REJECTED');assert.match(e.details.provider_text,/adaptive/);assert(!/private-token-value|bearer-secret|secret.example/.test(e.details.provider_text));assert.equal(e.details.retry_automatically,false);}
-});
-test('transport interruption keeps uncertainty and sanitized diagnostic without replay',async()=>{
- let attempts=0;const connection={tools,client:{callTool:async()=>{attempts++;const e=new Error('token=private-value connection ended');e.code=-32000;throw e;}}};
- await assert.rejects(call(connection,'generate_video',{model:'doubao-seedance-2-0-fast',prompt:'test'}),e=>e.code==='SUBMISSION_UNCERTAIN'&&e.details.transport_code===-32000&&!e.details.transport_error.includes('private-value')&&e.details.retry_automatically===false);
- assert.equal(attempts,1);
+test('provider diagnostics preserve constraints and redact credentials',()=>{
+ const text=sanitizeProviderText('参数配置不符合任务类型约束，比例必须为adaptive；token=private-token-value Bearer bearer-secret https://secret.example/token?key=secret');
+ assert.match(text,/adaptive/);assert(!/private-token-value|bearer-secret|secret.example/.test(text));
 });
 test('artifact inspection verifies hash and reports rounded dimensions or missing ffprobe',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-inspection-')),file=path.join(dir,'video.mp4'),bytes=Buffer.from('fixture');await fs.writeFile(file,bytes,{flag:'wx'});const artifact={path:file,size:bytes.length,sha256:hash(bytes)};

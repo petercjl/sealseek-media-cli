@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src/core.mjs';
-import { connect, desktopConfig, call } from '../src/mcp.mjs';
+import { connect, desktopConfig, call,request as canvasRequest,NATIVE_CONTRACT,validateNativeInput } from '../src/canvas.mjs';
 import { prepare, reference, upload, download } from '../src/media.mjs';
-import { submit, getJob, summary, waitJob, worker } from '../src/jobs.mjs';
+import { submit, getJob, summary, waitJob, worker,resumeJob } from '../src/jobs.mjs';
 import { SOURCE, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
@@ -13,6 +13,7 @@ import { latestVersion,performUpdate,updateStatus,setAutomatic } from '../src/up
 import { videoGuide } from '../src/video-contract.mjs';
 import { diagnose,inspectTask } from '../src/diagnostics.mjs';
 import { CATALOG,liveCatalog,modelContract,estimate } from '../src/models.mjs';
+import { verifyCredentials } from '../src/service.mjs';
 
 const HELP=`sealseek-media ${META.version}
 SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
@@ -25,20 +26,29 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   models estimate ID [--resolution VALUE] [--ratio RATIO]
     [--duration SECONDS | --count N] --json (read-only pricing; no generation)
   auth status [--live] [--login-id UUID] --json
-  auth login --json                  (returns a local webpage; user scans official QR)
+  auth login [--device client|web] [--method sms|wechat] --json                  (local webpage; default CLIENT channel and SMS login)
   auth logout [--desktop] --yes --json (private backups before credential removal)
   image generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
-    [--ratio RATIO] [--resolution VALUE] [--size WxH] [--count 1-4]
+    [--ratio RATIO] [--resolution VALUE] [--count 1-4]
     [--prompt-file FILE] [--output DIR] [--dry-run | --submit] [--new] --json
   video guide --model ID --json       (reference modes, model constraints, workflow)
   video generate --model ID --prompt TEXT [--reference FILE_OR_URL ...]
     [--ratio RATIO] [--resolution VALUE] [--duration SECONDS]
     [--first FILE_OR_URL] [--last FILE_OR_URL]
+    [--video-reference FILE_OR_URL ...] [--audio-reference FILE_OR_URL]
+    [--audio true|false] [--quality-mode std|pro] [--video-options JSON_FILE]
     [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
     [--dry-run | --submit] [--new] --json
-    Video has one output per request; --count and --size are image-only.
+    Video has one output per request; --count is image-only.
+    Exact pixel size is not verified; use catalog ratio/resolution choices.
+  image edit --image FILE_OR_URL --prompt TEXT [--model ID]
+    [--output DIR] [--dry-run | --submit] --json
+  image detect-text --image FILE_OR_URL --submit --json
+  image replace-text --image FILE_OR_URL --old-text TEXT --new-text TEXT
+    [--box x1,y1,x2,y2] [--output DIR] [--dry-run | --submit] --json
   image upload FILE --submit --json
   task get ID --json
+  task resume ID --json               (queries the saved remote task; no resubmission)
   task diagnose ID --json              (read-only; no generation replay)
   task inspect ID --json               (saved file hashes, dimensions and duration)
   task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
@@ -65,14 +75,14 @@ async function main(argv) {
   if (['image','video'].includes(command)&&['--help','help','-h'].includes(action))return console.log(HELP);
   if (['version','--version','-v'].includes(command)) return console.log(`sealseek-media ${META.version}`);
   if (command === '_worker') return worker(action);
-  if(command==='_auth-worker')return serveLogin(action,{verify:async token=>{const c=await connect({authToken:token});try{await call(c,'list_artifacts',{pageNum:1,pageSize:1},30000);}finally{await c.close();}}});
+  if(command==='_auth-worker')return serveLogin(action,{verify:async token=>verifyCredentials(await desktopConfig({authToken:token}))});
   if(command==='auth'){
-    const {options,args}=parse(rest,[...common,'live','login-id','desktop','yes']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if(action==='login')return out({ok:true,...await startLogin()});
+    const {options,args}=parse(rest,[...common,'live','login-id','desktop','yes','device','method']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
+    if(action==='login')return out({ok:true,...await startLogin({device:options.device||'client',method:options.method||'sms'})});
     if(action==='logout')return out(await logout(options));
     if(action==='status'){
       if(options['login-id'])return out({ok:true,...await loginStatus(options['login-id'])});
-      const v=await localAuthStatus(options);if(options.live)return withConnection(options,async c=>{await call(c,'list_artifacts',{pageNum:1,pageSize:1},30000);out({...v,verified:true});});
+      const v=await localAuthStatus(options);if(options.live)return out({...v,...await verifyCredentials(await desktopConfig(options))});
       return out({...v,verified:false});
     }
   }
@@ -87,7 +97,7 @@ async function main(argv) {
       if(action==='estimate')return out(await estimate(options,contract,c?.cfg));
       throw new MediaError('UNKNOWN_COMMAND','Use models list, show or estimate.');
     };
-    if(options.live)return withConnection(options,async c=>render(c,await liveCatalog(options,c.cfg)));
+    if(options.live)return withConnection(options,async c=>render(c,c.catalog));
     return render(null,CATALOG);
   }
   if (command === 'doctor' || command === 'capabilities') {
@@ -96,15 +106,36 @@ async function main(argv) {
     if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',manifest,model_catalog:CATALOG});
     let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
     const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:process.platform==='darwin', ...(command==='capabilities'?{manifest}:{})};
-    if (options.live) return withConnection(options,async c=>out({...result,...(command==='capabilities'?{model_catalog:await liveCatalog(options,c.cfg)}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),server_info:c.client.getServerVersion()}));
+    if (options.live) return withConnection(options,async c=>{await verifyCredentials(c.cfg);return out({...result,...(command==='capabilities'?{model_catalog:c.catalog}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),transport:'SealSeek Infinite Canvas REST'});});
     return out(result);
   }
-  if(command==='video'&&action==='guide'){const {options,args}=parse(rest,[...common,'model','live']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');if(options.live)return withConnection(options,async c=>out({ok:true,...videoGuide(options.model,{catalog:await liveCatalog(options,c.cfg),tools:c.tools})}));return out({ok:true,...videoGuide(options.model)});}
+  if(command==='video'&&action==='guide'){const {options,args}=parse(rest,[...common,'model','live']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');if(options.live)return withConnection(options,async c=>out({ok:true,...videoGuide(options.model,{catalog:c.catalog,tools:c.tools})}));return out({ok:true,...videoGuide(options.model)});}
+  if(command==='image'&&['edit','replace-text','detect-text'].includes(action)){
+    const {options,args}=parse(rest,[...common,'image','model','prompt','old-text','new-text','box','output','timeout','dry-run','submit','new']);requireValue(!args.length&&options.image,'INVALID_INPUT','Provide --image FILE_OR_URL.');
+    if(action==='detect-text'){
+      const ref=await reference(options.image);requireValue(options.submit&&!options['dry-run'],'SUBMIT_REQUIRED','Text detection requires --submit.');
+      return withConnection(options,async c=>{const url=await upload(c,ref);out({ok:true,detection:await canvasRequest(c.cfg,'/canvas/image/editTextDetect',{method:'POST',data:{imageUrl:url}})});});
+    }
+    requireValue(action!=='replace-text'||options['old-text']&&options['new-text'],'INVALID_INPUT','Provide --old-text and --new-text.');
+    const operationSchema=action==='edit'?'QuickEditRunParam':'EditTextParam';
+    const allowed=NATIVE_CONTRACT.schemas[operationSchema].properties.model.enum;
+    requireValue(allowed.includes(options.model||'gpt-image-2'),'FEATURE_UNSUPPORTED','The selected model does not support this image operation.',{operation:action,allowed_models:allowed});
+    const opts={...options,model:options.model||'gpt-image-2',prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
+    const prepared=await withConnection(options,async c=>prepare('image',opts,c.tools,c.catalog));
+    prepared.operation=action==='edit'?'quick-edit':'replace-text';
+    if(action==='replace-text'){
+      prepared.edit_params={oldText:options['old-text'],newText:options['new-text']};
+      if(options.box){const n=options.box.split(',').map(Number);requireValue(n.length===4&&n.every(v=>Number.isFinite(v)&&v>=0&&v<=1)&&n[0]<n[2]&&n[1]<n[3],'INVALID_INPUT','Box must be x1,y1,x2,y2 with increasing coordinates.');Object.assign(prepared.edit_params,{x1:n[0],y1:n[1],x2:n[2],y2:n[3]});}
+    }
+    validateNativeInput(operationSchema,{imageUrl:prepared.args.reference_images[0],model:prepared.args.model,...(action==='edit'?{prompt:prepared.args.prompt}:{edits:[prepared.edit_params]})});
+    if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,operation:prepared.operation,model:prepared.args.model,edit_parameters:prepared.edit_params||{prompt:prepared.args.prompt}});
+    return out(await submit(prepared,options));
+  }
   if (['image','video'].includes(command) && action === 'generate') {
-    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference']);
+    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','quality-mode','video-options','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const request=await withConnection(options,async c=>prepare(command,options,c.tools,await liveCatalog(options,c.cfg)));
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-tool-schema',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,local_uploads:request.refs.filter(r=>r.file).length+(request.first?.file?1:0)+(request.last?.file?1:0),output:request.output});
+    const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
+    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
     return out(await submit(request,options));
   }
   if (command==='image' && action==='upload') {
@@ -116,6 +147,7 @@ async function main(argv) {
   if (command==='task') {
     const {options,args}=parse(rest,['json','timeout','output']); requireValue(args.length===1,'INVALID_INPUT','Provide one task UUID.');
     if (action==='get') return out(summary(await getJob(args[0])));
+    if(action==='resume')return out(await resumeJob(args[0]));
     if (action==='diagnose'){const job=await getJob(args[0]);return out(diagnose(job,summary(job)));}
     if (action==='inspect')return out(await inspectTask(await getJob(args[0])));
     if (action==='wait') return out(await waitJob(args[0],Number(options.timeout || 30)));

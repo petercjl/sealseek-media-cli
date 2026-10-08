@@ -1,0 +1,572 @@
+{
+  "source": "https://gateway.sealseek.cn/api/sealseek-infinitecanvas/v3/api-docs",
+  "retrieved_at": "2026-10-08",
+  "operations": {
+    "/canvas/image/quickEditRun": "QuickEditRunParam",
+    "/canvas/image/editText": "EditTextParam",
+    "/canvas/image/inpaint": "InpaintParam"
+  },
+  "schemas": {
+    "CanvasChatParam": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "会话ID，用于多轮对话。直出模式（/generate）可不传，后端自动生成临时 ID，结果不写入 message 表。",
+          "example": "session_123456"
+        },
+        "canvasId": {
+          "type": "string",
+          "description": "画布ID（画板对话模式必填；aigc 模式可不传）",
+          "example": "canvas_123456"
+        },
+        "message": {
+          "type": "string",
+          "description": "用户输入的消息。resumeValue 非空时（confirm 模式批准/拒绝请求）可以为空——校验放在 AgentStreamServiceImpl 里做（message 与 resumeValue 至少有一个），不能再用 @NotBlank 硬约束，否则 resume 请求会被 Bean Validation 直接拒绝。",
+          "example": "帮我生成一个未来城市的图片"
+        },
+        "chatMode": {
+          "type": "string",
+          "description": "聊天模式：text=普通文本对话, agent=智能体模式（支持工具调用）",
+          "example": "agent",
+          "default": "agent",
+          "enum": [
+            "text",
+            "agent",
+            "aigc"
+          ]
+        },
+        "assetSource": {
+          "type": "string",
+          "description": "（兼容字段）资产归档来源；不传时由 chatMode 推断。前端统一使用 chatMode。",
+          "example": "AI_CREATE",
+          "deprecated": true,
+          "enum": [
+            "AI_CREATE",
+            "WHITEBOARD"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "description": "（已废弃）历史生成模式字段。多模态 Agent 会自动判断图像/视频意图，无需显式传入。",
+          "example": "video",
+          "deprecated": true
+        },
+        "model": {
+          "type": "string",
+          "description": "使用的模型",
+          "example": "gpt-4o",
+          "default": "gpt-4o"
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "自定义系统提示词（可选，不传则使用默认提示词）"
+        },
+        "imageParams": {
+          "$ref": "#/components/schemas/ImageParams"
+        },
+        "videoParams": {
+          "$ref": "#/components/schemas/VideoParams"
+        },
+        "videoReferenceParams": {
+          "$ref": "#/components/schemas/VideoReferenceParams"
+        },
+        "thinkingEnabled": {
+          "type": "boolean",
+          "description": "是否启用深度思考模式",
+          "example": true,
+          "default": true
+        },
+        "executionMode": {
+          "type": "string",
+          "description": "执行模式：auto=自动执行（默认）, plan=仅规划不执行, confirm=逐次确认后执行（生成工具需用户批准/拒绝）",
+          "example": "auto",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "plan",
+            "confirm"
+          ]
+        },
+        "resumeValue": {
+          "$ref": "#/components/schemas/ResumeValue"
+        },
+        "searchEnabled": {
+          "type": "boolean",
+          "description": "是否启用联网搜索",
+          "example": false,
+          "default": false
+        },
+        "planningEffort": {
+          "type": "string",
+          "description": "规划思考深度：low=快速规划，high=深度规划（默认）",
+          "example": "high",
+          "default": "high",
+          "enum": [
+            "low",
+            "high"
+          ]
+        },
+        "uploadedImage": {
+          "type": "string",
+          "description": "上传的图片（URL或base64）废弃",
+          "deprecated": true
+        },
+        "firstFrameImage": {
+          "type": "string",
+          "description": "首帧图片（仅视频模式）"
+        },
+        "lastFrameImage": {
+          "type": "string",
+          "description": "尾帧图片（仅视频模式）"
+        },
+        "traceId": {
+          "type": "string",
+          "description": "链路追踪 ID，由前端生成（格式：sessionId-timestamp-random），贯穿前端→Java→Python 全链路日志"
+        },
+        "skillId": {
+          "type": "string",
+          "description": "指定技能ID（可选），UUID 格式"
+        },
+        "parentImageKey": {
+          "type": "string",
+          "description": "画布连线：父节点的 image_key。有值 → 连线类型自动推导为 iterate（图片）或 continue_video（视频续拍）；不传 → 新建节点，连线类型为 generate / to_video。仅在调用异步任务接口 POST /canvas/tasks/generate 时生效。",
+          "nullable": true,
+          "example": "img-abc123"
+        },
+        "quotedContext": {
+          "$ref": "#/components/schemas/QuotedContext"
+        },
+        "quoteImages": {
+          "type": "array",
+          "description": "用户本轮通过 @ 选图器显式引用的图片列表（可选）。每项包含 label（@ 标签，原样嵌入消息文本）和 url（OSS URL）。新上传图的 url 仍需同时出现在 imageParams.images 中；历史生成图可只出现在此字段。",
+          "items": {
+            "$ref": "#/components/schemas/QuoteImageItem"
+          }
+        },
+        "prompt": {
+          "type": "string",
+          "writeOnly": true
+        },
+        "images": {
+          "type": "array",
+          "writeOnly": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "aspectRatio": {
+          "type": "string",
+          "writeOnly": true
+        },
+        "resolution": {
+          "type": "string",
+          "writeOnly": true
+        },
+        "num": {
+          "type": "object",
+          "writeOnly": true
+        }
+      },
+      "description": "画布聊天请求参数"
+    },
+    "ImageParams": {
+      "type": "object",
+      "properties": {
+        "num": {
+          "type": "string",
+          "description": "图片张数",
+          "example": "1"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "分辨率",
+          "example": "1024x1024"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "画面比例",
+          "example": "1:1"
+        },
+        "style": {
+          "type": "string",
+          "description": "风格",
+          "example": "realistic"
+        },
+        "images": {
+          "type": "array",
+          "description": "参考图列表",
+          "items": {
+            "type": "string",
+            "description": "参考图列表"
+          }
+        },
+        "roles": {
+          "type": "array",
+          "description": "参考图角色列表，与 images 一一对应（如 quoted、reference、product）",
+          "items": {
+            "type": "string",
+            "description": "参考图角色列表，与 images 一一对应（如 quoted、reference、product）"
+          }
+        },
+        "descriptions": {
+          "type": "array",
+          "description": "参考图描述列表，与 images 一一对应（主体特征描述，role=product 时有效）",
+          "items": {
+            "type": "string",
+            "description": "参考图描述列表，与 images 一一对应（主体特征描述，role=product 时有效）"
+          }
+        },
+        "model": {
+          "type": "string",
+          "description": "模型名称（Agent 模式用于传递用户偏好模型，即时覆盖 DB 缓存中的 preferred_image_model）",
+          "example": "nano-banana-pro"
+        }
+      },
+      "description": "图片生成参数"
+    },
+    "VideoParams": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "string",
+          "description": "时长（秒）",
+          "example": "8"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "分辨率（Seedance 2.0 旗舰：480p/720p/1080p/4k；2.0 Fast/Mini：480p/720p；4K 仅旗舰支持，10bit 位深）",
+          "example": "720p"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "画面比例（Seedance 2.0 支持 adaptive）",
+          "example": "16:9"
+        },
+        "motionIntensity": {
+          "type": "string",
+          "description": "运动幅度",
+          "example": "auto"
+        },
+        "style": {
+          "type": "string",
+          "description": "风格",
+          "example": "general"
+        },
+        "referenceVideos": {
+          "type": "array",
+          "description": "参考视频 URL 列表（最多3个，Seedance 2.0）：可用于视频参考、编辑视频、延长/串联视频",
+          "items": {
+            "type": "string",
+            "description": "参考视频 URL 列表（最多3个，Seedance 2.0）：可用于视频参考、编辑视频、延长/串联视频"
+          }
+        },
+        "referenceAudio": {
+          "type": "string",
+          "description": "参考音频 URL（Seedance 2.0）：克隆音色/音乐旋律/台词内容"
+        },
+        "referenceAudios": {
+          "type": "array",
+          "description": "多音频参考 URL 列表（Seedance 2.5 最多 10 段）",
+          "items": {
+            "type": "string",
+            "description": "多音频参考 URL 列表（Seedance 2.5 最多 10 段）"
+          }
+        },
+        "omniReferenceTaskType": {
+          "type": "string",
+          "description": "任务模式（Seedance 2.5）：reference / edit / extend / auto",
+          "example": "reference"
+        },
+        "outputFormat": {
+          "type": "string",
+          "description": "输出格式（Seedance 2.5）：mp4 / mov",
+          "example": "mp4"
+        },
+        "generateAudio": {
+          "type": "boolean",
+          "description": "是否生成音频（Seedance 1.5 Pro；2.0 默认原生输出音频）",
+          "example": false
+        },
+        "videoWebSearch": {
+          "type": "boolean",
+          "description": "联网搜索增强（Seedance 2.0，仅纯文本输入有效）",
+          "example": false
+        },
+        "mode": {
+          "type": "string",
+          "description": "画质模式：std（标准）| pro（高质量）；Kling v3/v3-omni 有效，默认 std",
+          "enum": [
+            "std",
+            "pro"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "description": "模型名称（Agent 模式用于传递用户偏好模型，即时覆盖 DB 缓存中的 preferred_video_model）",
+          "example": "doubao-seedance-pro"
+        },
+        "referenceImages": {
+          "type": "array",
+          "description": "多参考图 URL 列表（kling-v3-omni ≤7 张 / doubao-seedance-2-0 ≤9 张）",
+          "items": {
+            "type": "string",
+            "description": "多参考图 URL 列表（kling-v3-omni ≤7 张 / doubao-seedance-2-0 ≤9 张）"
+          }
+        },
+        "videoReferType": {
+          "type": "string",
+          "description": "Kling omni 参考视频用途：base=视频编辑，feature=特征参考视频",
+          "example": "base",
+          "enum": [
+            "base",
+            "feature"
+          ]
+        },
+        "keepOriginalSound": {
+          "type": "boolean",
+          "description": "Kling omni base/feature 视频是否保留原声，默认 true",
+          "example": true
+        },
+        "multiShot": {
+          "type": "boolean",
+          "description": "Kling 是否开启多镜头生成（仅 kling-v3-omni），默认 false。\n- multiShotPrompts 为空 → 智能模式：模型自动分镜\n- multiShotPrompts 非空 → 自定义模式：按列表顺序逐镜生成\n注意：有参考视频输入（referenceVideos 非空）时不可同时开启多镜头。\n",
+          "example": false
+        },
+        "multiShotPrompts": {
+          "type": "array",
+          "description": "Kling 自定义分镜列表（multiShot=true 且需要精确控制分镜时传入）。\n不传或为空时使用智能分镜模式，由模型自动决定镜头切换。\n每个元素包含单个镜头的描述和时长，所有镜头时长之和即为视频总时长。\n",
+          "example": [
+            {
+              "prompt": "产品从包装盒里取出，镜头推近",
+              "duration": 3
+            },
+            {
+              "prompt": "展示产品正面细节，环绕镜头",
+              "duration": 4
+            },
+            {
+              "prompt": "使用场景，手持产品，温暖氛围",
+              "duration": 3
+            }
+          ],
+          "items": {
+            "$ref": "#/components/schemas/MultiShotPrompt"
+          }
+        }
+      },
+      "description": "视频生成参数"
+    },
+    "MultiShotPrompt": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "该镜头的画面描述",
+          "example": "产品从包装盒里取出，镜头推近"
+        },
+        "duration": {
+          "type": "integer",
+          "description": "该镜头时长（秒），建议 3-5s，所有镜头时长之和不超过模型最大 duration",
+          "format": "int32",
+          "example": 3
+        }
+      },
+      "description": "单个分镜描述",
+      "example": [
+        {
+          "prompt": "产品从包装盒里取出，镜头推近",
+          "duration": 3
+        },
+        {
+          "prompt": "展示产品正面细节，环绕镜头",
+          "duration": 4
+        },
+        {
+          "prompt": "使用场景，手持产品，温暖氛围",
+          "duration": 3
+        }
+      ]
+    },
+    "ImageToolParam": {
+      "required": [
+        "imageUrl"
+      ],
+      "type": "object",
+      "properties": {
+        "imageUrl": {
+          "type": "string",
+          "description": "原图 OSS URL",
+          "example": "https://oss.sealseek.cn/images/example.jpg"
+        },
+        "canvasId": {
+          "type": "string",
+          "description": "画布 ID，用于将产物关联到画布任务列表"
+        },
+        "hdType": {
+          "type": "string",
+          "description": "HD 超分类型：generative（生成式超分，默认）/ standard（普通插值超分，速度更快）",
+          "example": "generative",
+          "enum": [
+            "generative",
+            "standard"
+          ]
+        }
+      },
+      "description": "图片工具请求参数"
+    },
+    "QuickEditRunParam": {
+      "required": [
+        "imageUrl",
+        "prompt"
+      ],
+      "type": "object",
+      "properties": {
+        "imageUrl": {
+          "type": "string",
+          "description": "原图 URL"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "编辑指令",
+          "example": "将背景替换为夜景，保持人物不变"
+        },
+        "model": {
+          "type": "string",
+          "description": "编辑模型：Gemini 或 GPT-Image-2",
+          "example": "gpt-image-2",
+          "enum": [
+            "gpt-image-2",
+            "nano-banana-pro",
+            "nano-banana2"
+          ]
+        },
+        "canvasId": {
+          "type": "string",
+          "description": "画布 ID，用于将产物关联到画布任务列表"
+        }
+      },
+      "description": "快捷编辑执行请求参数"
+    },
+    "EditTextParam": {
+      "required": [
+        "edits",
+        "imageUrl"
+      ],
+      "type": "object",
+      "properties": {
+        "imageUrl": {
+          "type": "string",
+          "description": "原图 OSS URL",
+          "example": "https://oss.sealseek.cn/images/example.jpg"
+        },
+        "edits": {
+          "type": "array",
+          "description": "文字编辑列表，支持同时编辑多处",
+          "items": {
+            "$ref": "#/components/schemas/TextEdit"
+          }
+        },
+        "model": {
+          "type": "string",
+          "description": "使用的编辑模型，不传默认 gpt-image-2",
+          "example": "gpt-image-2",
+          "enum": [
+            "nano-banana-pro",
+            "nano-banana2",
+            "gpt-image-2",
+            "seedream-4-0",
+            "seedream-4-5",
+            "seedream-5-0-lite",
+            "seedream-5-0"
+          ]
+        },
+        "canvasId": {
+          "type": "string",
+          "description": "画布 ID，用于将产物关联到画布任务列表"
+        }
+      },
+      "description": "编辑文字请求参数"
+    },
+    "TextEdit": {
+      "required": [
+        "newText",
+        "oldText"
+      ],
+      "type": "object",
+      "properties": {
+        "oldText": {
+          "type": "string",
+          "description": "要替换的原始文字",
+          "example": "Summer Sale"
+        },
+        "newText": {
+          "type": "string",
+          "description": "替换后的新文字",
+          "example": "新品上市"
+        },
+        "x1": {
+          "type": "number",
+          "description": "文字区域归一化左边界 [0,1]，来自 editTextDetect",
+          "format": "double"
+        },
+        "y1": {
+          "type": "number",
+          "description": "文字区域归一化上边界 [0,1]",
+          "format": "double"
+        },
+        "x2": {
+          "type": "number",
+          "description": "文字区域归一化右边界 [0,1]",
+          "format": "double"
+        },
+        "y2": {
+          "type": "number",
+          "description": "文字区域归一化下边界 [0,1]",
+          "format": "double"
+        }
+      },
+      "description": "单条文字编辑项"
+    },
+    "InpaintParam": {
+      "required": [
+        "imageUrl",
+        "prompt"
+      ],
+      "type": "object",
+      "properties": {
+        "imageUrl": {
+          "type": "string",
+          "description": "原图 URL",
+          "example": "https://oss.example.com/image.jpg"
+        },
+        "maskUrl": {
+          "type": "string",
+          "description": "遮罩图 OSS URL（RGBA PNG，透明区域=待重绘区域），与 maskBase64 二选一，优先使用"
+        },
+        "maskBase64": {
+          "type": "string",
+          "description": "遮罩图 Base64（RGBA PNG，透明区域=待重绘区域），maskUrl 不传时使用"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "重绘内容描述",
+          "example": "将该区域替换为一束鲜花"
+        },
+        "referenceUrls": {
+          "type": "array",
+          "description": "参考图 URL 列表（可选），用于指导重绘内容的风格/内容",
+          "items": {
+            "type": "string",
+            "description": "参考图 URL 列表（可选），用于指导重绘内容的风格/内容"
+          }
+        },
+        "canvasId": {
+          "type": "string",
+          "description": "画布 ID，用于将产物关联到画布任务列表"
+        }
+      },
+      "description": "局部重绘请求参数"
+    }
+  }
+}

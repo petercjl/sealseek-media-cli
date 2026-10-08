@@ -1,20 +1,34 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { requireValue, MediaError, secureUrl, hash } from './core.mjs';
-import { toolFor, validateArguments, call } from './mcp.mjs';
+import { toolFor, validateArguments, call,request,API,authenticatedFetch,generationPayload,validateNativeInput } from './canvas.mjs';
 import { validateModel } from './models.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
-export async function reference(value) {
+export async function reference(value,kind='image') {
   if (/^https?:\/\//i.test(value)) return { url: secureUrl(value).href };
   const file = path.resolve(value), stat = await fs.stat(file).catch(() => null);
-  requireValue(stat?.isFile() && stat.size > 0 && stat.size <= 30 * 1024 * 1024, 'INVALID_REFERENCE', 'A reference must be a readable image file of 1 byte to 30 MiB.');
-  const mime = MIME[path.extname(file).toLowerCase()];
-  requireValue(mime, 'INVALID_REFERENCE', 'Supported reference formats: PNG, JPEG, WebP, GIF.');
+  requireValue(stat?.isFile() && stat.size > 0 && stat.size <= (kind==='image'?30:200) * 1024 * 1024, 'INVALID_REFERENCE', 'Reference file is missing, empty, or exceeds the local upload limit.');
+  const mime = (kind==='image'?MIME:kind==='video'?{'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm'}:{'.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4'})[path.extname(file).toLowerCase()];
+  requireValue(mime, 'INVALID_REFERENCE', `Unsupported ${kind} reference format.`);
   const bytes = await fs.readFile(file);
   const valid = mime === 'image/png' ? bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : mime === 'image/jpeg' ? bytes[0] === 255 && bytes[1] === 216 : mime === 'image/webp' ? bytes.toString('ascii',0,4) === 'RIFF' && bytes.toString('ascii',8,12) === 'WEBP' : /^GIF8[79]a/.test(bytes.toString('ascii',0,6));
-  requireValue(valid, 'INVALID_REFERENCE', 'The image content does not match its extension.');
+  requireValue(kind==='image'?valid:kind==='video'?(bytes.toString('ascii',4,8)==='ftyp'||bytes.subarray(0,4).equals(Buffer.from([26,69,223,163]))):(bytes.toString('ascii',0,3)==='ID3'||bytes[0]===255||bytes.toString('ascii',0,4)==='RIFF'||bytes.toString('ascii',4,8)==='ftyp'), 'INVALID_REFERENCE', 'The reference content does not match its extension.');
   return { file, mime, digest: hash(bytes), size: stat.size };
+}
+export function validateVideoOptions(extra,options,duration) {
+  const common=['motionIntensity','style'],seed25=['omniReferenceTaskType','outputFormat'],seed20=['videoWebSearch'],kling=['videoReferType','keepOriginalSound','multiShot','multiShotPrompts'];
+  const allowed=[...common,...(options.model==='doubao-seedance-2-5'?seed25:[]),...(/^doubao-seedance-2-0/.test(options.model)?seed20:[]),...(options.model==='kling-v3-omni'?kling:[])];
+  requireValue(extra&&typeof extra==='object'&&!Array.isArray(extra),'INVALID_INPUT','Video options must be a JSON object.');
+  requireValue(Object.keys(extra).every(k=>allowed.includes(k)),'FEATURE_UNSUPPORTED','Video options include unsupported fields for this model.',{allowed_fields:allowed});
+  validateNativeInput('VideoParams',extra);
+  requireValue(!extra.omniReferenceTaskType||['reference','edit','extend','auto'].includes(extra.omniReferenceTaskType),'FEATURE_UNSUPPORTED','Invalid Seedance 2.5 task mode.');
+  requireValue(!extra.outputFormat||['mp4','mov'].includes(extra.outputFormat),'FEATURE_UNSUPPORTED','Output format must be mp4 or mov.');
+  requireValue(!extra.videoWebSearch||!((options.reference||[]).length||(options['video-reference']||[]).length||options.first||options.last||options['audio-reference']),'FEATURE_UNSUPPORTED','Web search enhancement requires text-only input.');
+  requireValue(extra.videoReferType===undefined&&extra.keepOriginalSound===undefined||(options['video-reference']||[]).length,'FEATURE_UNSUPPORTED','Video reference options require --video-reference.');
+  requireValue(!extra.multiShot||!(options['video-reference']||[]).length,'FEATURE_UNSUPPORTED','Multi-shot mode cannot use video references.');
+  requireValue(extra.multiShotPrompts===undefined,'FEATURE_UNSUPPORTED','Custom Kling shot lists are currently rejected by the provider adapter (missing index). Use intelligent multiShot mode or report the service limitation.',{field:'multiShotPrompts',paid_action:false});
+  return extra;
 }
 export async function prepare(kind, options, tools, catalog) {
   requireValue(['image','video'].includes(kind), 'INVALID_INPUT', 'Expected image or video.');
@@ -31,7 +45,7 @@ export async function prepare(kind, options, tools, catalog) {
     const value = Number(options[flag]); requireValue(Number.isInteger(value) && value > 0, 'INVALID_INPUT', `${flag} must be a positive integer.`);
     requireValue(kind === (flag === 'count' ? 'image' : 'video'), 'FEATURE_UNSUPPORTED', `${flag} is not supported for ${kind}.`); args[name] = value;
   }
-  // Provider catalog choices supplement descriptive-only MCP schemas.
+  // Provider catalog choices constrain the native request contract.
   if (kind === 'image') {
     args.num ??= 1;
     requireValue(args.num <= 4, 'FEATURE_UNSUPPORTED', 'Generate at most four images per request.');
@@ -39,45 +53,36 @@ export async function prepare(kind, options, tools, catalog) {
   } else {
     args.duration ??= contract.defaults.duration;
   }
-  const refs = await Promise.all((options.reference || []).map(reference));
+  if(options['video-options']) {
+    requireValue(kind==='video','FEATURE_UNSUPPORTED','--video-options is a video input.');
+    let extra;try{extra=JSON.parse(await fs.readFile(path.resolve(options['video-options']),'utf8'));}catch{throw new MediaError('INVALID_INPUT','Video options must be a readable JSON object file.');}
+    args.video_options=validateVideoOptions(extra,options,args.duration);
+  }
+  const refs = await Promise.all((options.reference || []).map(v=>reference(v)));
   if (refs.length) args.reference_images = refs.map(r => r.url || 'https://reference.invalid/pending-upload.png');
   const first = options.first ? await reference(options.first) : null, last = options.last ? await reference(options.last) : null;
   requireValue(kind === 'video' || (!first && !last), 'FEATURE_UNSUPPORTED', 'First and last frames are video inputs.');
   if (first) args.first_frame_image = first.url || 'https://reference.invalid/pending-upload.png';
   if (last) args.last_frame_image = last.url || 'https://reference.invalid/pending-upload.png';
+  const videoRefs=await Promise.all((options['video-reference']||[]).map(v=>reference(v,'video')));
+  const audioRef=options['audio-reference']?await reference(options['audio-reference'],'audio'):null;
+  if(videoRefs.length)args.reference_videos=videoRefs.map(r=>r.url||'https://reference.invalid/pending-upload.mp4');
+  if(audioRef)args.reference_audio=audioRef.url||'https://reference.invalid/pending-upload.wav';
+  if(options.audio!==undefined){requireValue(['true','false'].includes(options.audio),'INVALID_INPUT','Audio must be true or false.');args.generate_audio=options.audio==='true';}
+  if(options['quality-mode'])args.quality_mode=options['quality-mode'];
   const tool = toolFor(tools, `generate_${kind}`); validateArguments(tool, args);
-  if ([...refs, first, last].some(r => r?.file)) toolFor(tools, 'create_upload_urls');
-  return { kind, tool: tool.name, args, refs, first, last, model_contract:contract, output: options.output ? path.resolve(options.output) : null };
-}
-function records(values, accept, output = []) {
-  for (const value of values) {
-    if (value && typeof value === 'object') {
-      if (accept(value)) output.push(value);
-      else for (const v of Object.values(value)) records([v], accept, output);
-    }
-  }
-  return output;
-}
-export function signedUploadUrl(value) {
-  const u = new URL(value);
-  // OSS signatures bind the resource/query, not the transport scheme. Upgrade
-  // the provider's legacy HTTP OSS endpoint without changing signed bytes.
-  const candidate = u.protocol === 'http:' && /^[a-z0-9.-]+\.oss-[a-z0-9-]+\.aliyuncs\.com$/i.test(u.hostname)
-    ? value.replace(/^http:/i,'https:') : value;
-  secureUrl(candidate);
-  return candidate;
+  generationPayload(kind,args,{canvasId:'dry-run',traceId:'dry-run'});
+
+  return { kind, transport:'infinite-canvas',tool: tool.name, args, refs, first, last,videoRefs,audioRef,model_contract:contract, output: options.output ? path.resolve(options.output) : null };
 }
 export async function upload(connection, ref) {
   if (ref.url) return ref.url;
   const bytes = await fs.readFile(ref.file);
   requireValue(hash(bytes) === ref.digest, 'REFERENCE_CHANGED', 'A reference changed after validation. Prepare a new request.');
-  const data = await call(connection, 'create_upload_urls', { files: [{ mime_type: ref.mime }] }, 30000);
-  const item = records(data, v => typeof v.upload_url === 'string' && typeof v.file_url === 'string')[0];
-  requireValue(item, 'OUTPUT_CONTRACT_FAILED', 'The upload tool returned no signed upload URL.');
-  const uploadUrl = signedUploadUrl(item.upload_url); secureUrl(item.file_url);
-  const response = await fetch(uploadUrl, { method: 'PUT', headers: item.headers || { 'Content-Type': ref.mime }, body: bytes, redirect: 'error', signal: AbortSignal.timeout(60000) });
-  requireValue(response.ok, 'UPLOAD_FAILED', 'Reference upload failed.');
-  return item.file_url;
+  const form=new FormData();form.append('file',new Blob([bytes],{type:ref.mime}),path.basename(ref.file));
+  const response=await authenticatedFetch(new URL(API+'/common/upload',connection.cfg.url.origin),{method:'POST',headers:connection.cfg.headers,body:form,redirect:'error',signal:AbortSignal.timeout(60000)});
+  requireValue(response.ok,'UPLOAD_FAILED','Reference upload failed.');
+  const body=await response.json();requireValue(body.code===200&&typeof body.data==='string','UPLOAD_FAILED','Infinite Canvas returned no uploaded file URL.');secureUrl(body.data);return body.data;
 }
 export function mediaUrls(values, kind) {
   const out = new Set();
@@ -115,10 +120,16 @@ export async function execute(connection, request, timeout) {
   if (request.refs.length) args.reference_images = await Promise.all(request.refs.map(r => upload(connection,r)));
   if (request.first) args.first_frame_image = await upload(connection, request.first);
   if (request.last) args.last_frame_image = await upload(connection, request.last);
+  if(request.videoRefs?.length)args.reference_videos=await Promise.all(request.videoRefs.map(r=>upload(connection,r)));
+  if(request.audioRef)args.reference_audio=await upload(connection,request.audioRef);
+  connection.operation=request.operation;connection.editParams=request.edit_params;
   const values = await call(connection, request.tool, args, timeout);
-  const urls = mediaUrls(values, request.kind);
+  return generationResult(values,request);
+}
+export function generationResult(values,request){
+  const urls = mediaUrls(values.map(v=>({outputs:v[request.kind==='image'?'images':'videos'],resultUrl:v.resultUrl})), request.kind);
   requireValue(urls.length, 'OUTPUT_CONTRACT_FAILED', 'The generation tool returned no usable media URL. Inspect history before resubmitting.');
   const messages=values.filter(v=>typeof v==='string').join('\n');
   const amount=/扣费[：:]\s*(\d+(?:\.\d+)?)\s*积分/.exec(messages);
-  return { urls, requested_model: request.args.model, actual_model: null, count: urls.length,cost:amount?{amount:Number(amount[1]),unit:'SealSeek credits'}:null };
+  return { urls, requested_model: request.args.model, actual_model: null, count: urls.length,cost:values[0]?.billingXidou!=null?{amount:values[0].billingXidou,unit:'SealSeek credits'}:amount?{amount:Number(amount[1]),unit:'SealSeek credits'}:null };
 }

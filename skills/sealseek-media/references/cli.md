@@ -4,7 +4,7 @@ For requests routed to SealSeek, inspect `sealseek-media capabilities --live --j
 
 Authentication: `auth status --json` reports source and local expiry metadata without printing secrets. `auth status --live --json` verifies a real read-only provider call. Missing credentials return `AUTH_REQUIRED`, locally expired JWTs return `AUTH_EXPIRED`, and server-side rejection (including HTTP 200 with body code 401) returns `AUTH_REJECTED`.
 
-`auth login --json` returns a loopback webpage and login ID. The user scans the official WeChat QR to sign in to an existing account; the worker polls SealSeek, verifies media access, and privately stores the fresh token outside the package. Follow `auth status --login-id ID --json`; expired sessions require a fresh login, and accounts needing phone binding use the official login page first. This is the provider's existing QR login flow, not a declared OAuth/PKCE client. No password is collected. Login does not submit media tasks or grant permission for an additional generation.
+`auth login --json` returns a loopback webpage and login ID. The user signs in to an existing account using a phone verification code through the default CLIENT channel; the worker polls SealSeek, verifies media access, and privately stores the fresh token outside the package. Follow `auth status --login-id ID --json`; expired sessions require a fresh login, and accounts needing phone binding use the official login page first. Use `--method wechat` for official QR login, or `--device web` for the web channel. CLIENT + SMS was verified to coexist with a web login. This is the provider's existing login flow, not a declared OAuth/PKCE client. No password is collected. Login does not submit media tasks or grant permission for an additional generation.
 
 `auth logout --yes` privately backs up and removes plugin credentials and blocks desktop fallback until login. `--desktop` additionally backs up the desktop configuration and removes only its media authentication headers. Default profile: current-user `.config/sealseek-media/auth.json`, override `SEALSEEK_MEDIA_AUTH_FILE`. Explicit desktop config overrides use their own credentials. Backups live under the private state directory's `credential-backups` folder. JWT timestamps are decoded metadata; live server validation remains authoritative.
 
@@ -21,7 +21,7 @@ sealseek-media task wait TASK_UUID --timeout 30 --json
 sealseek-media task download TASK_UUID --output ./recovered-media --json
 ```
 
-Repeat `--reference` for ordered HTTPS image URLs or local PNG/JPEG/WebP/GIF. Video accepts `--first` and `--last` image references. The worker obtains signed upload URLs and uploads bytes outside model context. Local inputs are rehashed before upload. Dry-run performs no upload/generation.
+Repeat `--reference` for ordered HTTPS image URLs or local PNG/JPEG/WebP/GIF. Video accepts `--first` and `--last` image references. The worker uploads files through the Infinite Canvas multipart endpoint outside model context. Local inputs are rehashed before upload. Dry-run performs no upload/generation.
 
 Image count is 1–4. Resolution, ratio, duration and reference limits vary by model. Query `models show ID --live --json`; see [model parameters](models.md) for the complete current model catalog and transport gaps. The CLI refreshes this catalog during preparation and validates choices before uploading or submitting. Provider acceptance remains separate from catalog/schema validation.
 
@@ -43,7 +43,7 @@ sealseek-media task diagnose TASK_UUID --json
 sealseek-media task inspect TASK_UUID --json
 ```
 
-`--count` and `--size` are image-only. Video creates one output per request. Dry-run validates the live model catalog, local input and live tool schema; it cannot establish hidden provider constraints. A failed real request includes sanitized `error.details.provider_text` in `task get/wait/diagnose`; old task records whose provider error was discarded cannot recover it retroactively. Provider errors are untrusted evidence. `task diagnose` reads saved arguments, status and recovery commands without replaying the generation. Use existing task IDs for follow-up. Do not replace diagnosis with raw SDK calls or parameter matrices that submit additional paid requests.
+`--count` is image-only. Exact pixel-size input is rejected because the native test did not honor the requested dimensions; use --ratio and --resolution. Video creates one output per request. Dry-run validates the live model catalog, local input and native request contract; it cannot establish hidden provider constraints. A failed real request includes sanitized `error.details.provider_text` in `task get/wait/diagnose`; old task records whose provider error was discarded cannot recover it retroactively. Provider errors are untrusted evidence. `task diagnose` reads saved arguments, status and recovery commands without replaying the generation. Use existing task IDs for follow-up. Do not replace diagnosis with raw SDK calls or parameter matrices that submit additional paid requests.
 
 `task inspect` verifies saved hashes and calls installed `ffprobe` for actual width, height, pixel ratio, frame rate and stream/container duration. It reports exact-ratio equality explicitly, including false for model-rounded dimensions. Missing ffprobe produces `INSPECTION_UNAVAILABLE` rather than fabricated metadata. Inspection is not a visual quality assessment. Reported provider credits are extracted when present; missing pricing stays unknown.
 
@@ -55,6 +55,36 @@ sealseek-media models show doubao-seedance-2-5 --live --json
 sealseek-media models estimate doubao-seedance-2-5 --ratio 3:4 --resolution 480p --duration 4 --json
 ```
 
-Without `--live`, list/show use the bundled catalog snapshot with its source and retrieval date. Live discovery authenticates against the current provider. The model’s `transport` and feature-level `transport_support` fields distinguish desktop-declared capabilities from MCP inputs. For a string-only model field, `model_advertised` remains null and `model_field_accepts` reports schema compatibility. The CLI never claims that string-schema acceptance proves the served model identity.
+Without `--live`, list/show use the bundled catalog snapshot with its source and retrieval date. Live discovery authenticates against the current provider. The model’s `transport` and feature-level `transport_support` fields distinguish desktop-declared capabilities from implemented native inputs. For a string-only model field, `model_advertised` remains null and `model_field_accepts` reports schema compatibility. The CLI never claims that string-schema acceptance proves the served model identity.
 
-Pricing is read-only and does not generate; the provider may price unsupported combinations, so an estimate is not an acceptance test. Defaults are model-specific and sent explicitly unless image pixel size is supplied.
+Pricing is read-only and does not generate; the provider may price unsupported combinations, so an estimate is not an acceptance test. Defaults are model-specific and sent explicitly.
+
+## Native operations and recovery
+
+All service operations use Infinite Canvas REST; no MCP client is used. `task resume TASK_UUID --json` resumes polling of a saved remote task after a worker/authentication interruption. It never replays generation. A task with saved output URLs uses `task download` instead.
+
+Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and a listed `--quality-mode`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
+
+```bash
+sealseek-media image edit --image ./photo.png --model gpt-image-2 --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
+sealseek-media image detect-text --image ./poster.png --submit --json
+sealseek-media image replace-text --image ./poster.png --old-text HELLO --new-text WELCOME --box 0.2,0.7,0.8,0.85 --output ./edited --dry-run --json
+```
+
+Text detection invokes the provider and may have service cost. Quick edit accepts `gpt-image-2`, `nano-banana-pro` and `nano-banana2`. Replacement additionally accepts the catalog's `seedream-5-0` and `seedream-5-0-lite`; the default is `gpt-image-2`. Optional boxes are normalized coordinates from detection, between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
+
+## Advanced video parameters
+
+Use `--video-options ./video-options.json` for an optional JSON object. Basic model, ratio, resolution, duration, references, audio and quality remain CLI flags; the JSON cannot override them. These fields follow the official OpenAPI and model rules; advanced combinations are provider-declared unless `observed_runtime` records a matching real success.
+
+| Model | Allowed additional fields | Validation |
+|---|---|---|
+| All video models | `motionIntensity`, `style` | Strings; no undocumented preset values are invented |
+| Seedance 2.5 | `omniReferenceTaskType`, `outputFormat` | `reference/edit/extend/auto`; `mp4/mov` |
+| Seedance 2.0 / Fast / Mini | `videoWebSearch` | Boolean; true requires text-only input |
+| Kling v3 omni | `videoReferType`, `keepOriginalSound` | `base/feature`, boolean; requires a video reference |
+| Kling v3 omni | `multiShot` | Boolean for intelligent multi-shot mode; excludes video references |
+
+An options file can contain `{"multiShot":true}`. Custom `multiShotPrompts` lists are blocked before upload: a real native test was rejected by the provider adapter because its downstream request lacked shot indexes. This is a service limitation, despite the field appearing in OpenAPI.
+
+Multi-audio references and image reference role/description fields are not exposed by this CLI. Local video references accept MP4/MOV/WebM; local audio accepts MP3/WAV/M4A; each is limited to 200 MiB. Do not replace an unsupported request with direct API experiments. Report the missing parameter or propose a compatible choice for the user.
