@@ -1,6 +1,6 @@
 {
   "name": "@petercjl/sealseek-media-cli",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "SealSeek image and video CLI with a portable Skill for Codex and WorkBuddy; routing is configured by the user in their Agent.",
   "type": "module",
   "bin": {
