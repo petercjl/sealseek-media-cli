@@ -120,6 +120,10 @@ sealseek-media canvas use RETURNED_CANVAS_ID --session CONVERSATION_ID --yes --j
 
 Canvas layout uses 48 canvas units between elements and rows, top-aligns each row, and starts the next row below the tallest element. Image and video each count as one element. Submission time determines order, including parallel requests; outputs in a batch keep their returned order. Each archival reflows CLI media. Other user elements retain their positions; CLI rows are placed below them. To organize existing CLI media without generation, use `sealseek-media canvas arrange ID --submit --json`. Legacy records recover submission order from local tasks when available; otherwise existing element order is preserved.
 
+### Generation details
+
+Archived image/video elements include `customData.generationParams`, consumed by Infinite Canvas's existing “查看生成详情” control. It stores prompt, model, aspect ratio, resolution, available generation parameters and reference media URLs without creating visible text elements. Request settings do not certify actual output properties. `task sync TASK_ID --json` can populate these details on existing CLI media without duplicating outputs or restoring deleted elements. Reference previews use the provider's browsable URLs; private local paths and credentials remain outside canvas metadata. The CLI verifies metadata as well as placement after saving. A history lookup or save failure is reported as a canvas sync error; retain the generated outputs and retry archival through `task sync`.
+
 ## Canvas deletion
 
 `canvas delete --title "EXACT_TITLE" --json` previews all exact-title matches across pages. `canvas delete ID --json` previews a single canvas. After explicit human authorization, add `--submit --yes` to delete. Complete private backups of each canvas’s content and current task history are verified before the first deletion. The result returns deleted IDs and the backup directory. Backups preserve content; they do not guarantee restoration of original canvas IDs, sharing permissions, or backend generation tasks. An unknown deletion response stops immediately and is never replayed automatically.

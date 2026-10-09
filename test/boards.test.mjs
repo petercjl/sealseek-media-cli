@@ -4,7 +4,25 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {selectCanvas,useCanvas,appendMedia,archiveMedia,arrangeContent,deleteCanvases} from '../src/boards.mjs';
+import {selectCanvas,useCanvas,appendMedia,archiveMedia,arrangeContent,deleteCanvases,generationParams} from '../src/boards.mjs';
+
+test('native generation details preserve prompts and parameters, resolve reviewed references and exclude private inputs',()=>{
+ const params=generationParams({prompt:'requested',model:'requested-model',aspect_ratio:'3:4',resolution:'480p',duration:5,generate_audio:false,reference_images:['asset://approved'],reference_audio:'/private/audio.wav',video_options:{token:'secret',unknown:'private'}},{prompt:'actual',model:'native-model',billingXidou:0,params:{referenceImages:['https://example.com/ref.png','/private/a.png','asset://approved','https://user:password@example.com/a'],duration:'5'}});
+ assert.equal(params.prompt,'actual');assert.equal(params.model,'native-model');assert.equal(params.duration,5);assert.equal(params.generateAudio,false);assert.equal(params.aspectRatio,'3:4');assert.equal(params.billingXidou,0);assert.deepEqual(params.referenceImages,['https://example.com/ref.png']);assert.equal(params.token,undefined);assert.equal(params.unknown,undefined);assert.equal(params.referenceAudio,undefined);
+});
+
+test('sync enriches existing elements without duplicating or reviving deleted media and is idempotent',()=>{
+ const media={id:'details-task',kind:'image',urls:['https://example.com/1.png','https://example.com/2.png']};
+ const first=appendMedia('{}',media),old=JSON.parse(first.content);old.elements[0].customData.userNote='keep';old.elements[1].isDeleted=true;
+ const enriched=appendMedia(JSON.stringify(old),{...media,generationParams:{prompt:'scene',model:'model',referenceImages:['https://example.com/ref.png']}}),v=JSON.parse(enriched.content);
+ assert.equal(enriched.added.length,0);assert.equal(v.elements.length,2);assert.equal(v.elements[0].customData.generationParams.prompt,'scene');assert.equal(v.elements[0].customData.userNote,'keep');assert.equal(v.elements[1].isDeleted,true);assert.equal(v.elements[1].customData.generationParams,undefined);
+ assert.equal(appendMedia(enriched.content,{...media,generationParams:v.elements[0].customData.generationParams}).content,enriched.content);
+});
+
+test('image and video generation details are hidden on their own elements, without text elements',()=>{
+ let content='{}';for(const kind of ['image','video'])content=appendMedia(content,{id:kind,kind,urls:['https://example.com/'+kind],generationParams:{prompt:kind,model:kind,aspectRatio:'3:4',resolution:'1K'}}).content;
+ const v=JSON.parse(content);assert.equal(v.elements.length,2);assert(v.elements.every(e=>e.type==='image'));assert.equal(v.elements[0].customData.generationParams.prompt,'image');assert.equal(v.elements[1].customData.generationParams.prompt,'video');
+});
 
 test('conversation bindings reuse one board, isolate accounts, allow explicit switching, and never repeat uncertain creation',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'canvas-test-')),old=process.env.SEALSEEK_MEDIA_STATE_DIR;process.env.SEALSEEK_MEDIA_STATE_DIR=dir;

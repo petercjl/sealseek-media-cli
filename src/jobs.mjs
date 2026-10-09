@@ -3,8 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { ROOT, META, stateRoot, requireValue, hash, readJson, createJson, replaceJob, publicError } from './core.mjs';
-import { connect,pollTask } from './canvas.mjs';
-import {selectCanvas,archiveMedia,accountScope} from './boards.mjs';
+import { connect,pollTask,request as canvasRequest } from './canvas.mjs';
+import {selectCanvas,archiveMedia,accountScope,generationParams} from './boards.mjs';
 import { execute, download,generationResult } from './media.mjs';
 
 export function jobPath(id) {
@@ -67,7 +67,7 @@ export async function worker(id) {
     job.result = job.resume_only?generationResult([await pollTask(connection.cfg,job.remote.remote_task_id,{timeout:job.timeout*1000})],job.request):await execute(connection, job.request, job.timeout*1000);
     // Persist remote output before downloading so download failure never causes regeneration.
     job.status = 'generated'; await replaceJob(p,job);
-    try{job.canvas_sync=await archiveMedia(connection.cfg,job.remote.canvasId,{id:job.remote.remote_task_id,kind:job.request.kind,urls:job.result.urls,ratio:job.request.args.aspect_ratio,order:job.created_at});delete job.canvas_sync_error;}catch(e){job.canvas_sync_error=publicError(e);}
+    try{job.canvas_sync=await archiveJob(connection.cfg,job);delete job.canvas_sync_error;}catch(e){job.canvas_sync_error=publicError(e);}
     await replaceJob(p,job);
     if (job.request.output) job.files = await download(job.result.urls, job.request.kind, job.request.output,job.id);
     job.status = 'succeeded';
@@ -98,7 +98,11 @@ export async function waitJob(id, seconds = 30) {
   }
 }
 
+async function archiveJob(cfg,job){
+ const task=await canvasRequest(cfg,'/canvas/tasks/'+encodeURIComponent(job.remote.remote_task_id));
+ return archiveMedia(cfg,job.remote.canvasId,{id:job.remote.remote_task_id,kind:job.request.kind,urls:job.result.urls,ratio:job.request.args.aspect_ratio,order:job.created_at,generationParams:generationParams(job.executed_arguments||job.request.args,task)});
+}
 export async function syncJob(id){
  const job=await getJob(id);requireValue(job.result?.urls?.length&&job.remote?.canvasId,'INVALID_INPUT','This task has no generated media to archive.');
- const c=await connect(job.configOptions);try{requireValue(!job.request.account_scope||await accountScope(c.cfg)===job.request.account_scope,'AUTH_REJECTED','Sign in to the task account before archival.');job.canvas_sync=await archiveMedia(c.cfg,job.remote.canvasId,{id:job.remote.remote_task_id,kind:job.request.kind,urls:job.result.urls,ratio:job.request.args.aspect_ratio,order:job.created_at});delete job.canvas_sync_error;await replaceJob(jobPath(id),job);return summary(job);}finally{await c.close();}
+ const c=await connect(job.configOptions);try{requireValue(!job.request.account_scope||await accountScope(c.cfg)===job.request.account_scope,'AUTH_REJECTED','Sign in to the task account before archival.');job.canvas_sync=await archiveJob(c.cfg,job);delete job.canvas_sync_error;await replaceJob(jobPath(id),job);return summary(job);}finally{await c.close();}
 }

@@ -78,6 +78,8 @@ Pass ordinary reference images with `--reference` (or supported first/last-frame
 
 ## Conversation canvases
 
+Images and videos archived by the CLI include hidden generation details for Infinite Canvas's existing “查看生成详情” control: prompt, model, ratio/resolution, available parameters and reference media. These do not add text objects to the canvas. Use `task sync TASK_ID --json` to enrich existing CLI elements without generating again. Saved settings describe the request; output dimensions and duration should still be checked through artifact inspection.
+
 Use a stable `--session CONVERSATION_ID` for every generation/edit in one Agent conversation. The first real submission creates and binds one canvas; subsequent requests reuse it. Dry-run creates no canvas. The Agent obtains its native conversation ID or creates one identifier once and retains it throughout the conversation. Starting a new canvas requires an explicit user request.
 
 ```sh
