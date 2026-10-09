@@ -51,7 +51,7 @@ sealseek-media update install --yes --json
 
 ## Video reference workflow
 
-Use `video guide --model ID --json` and `--reference` when an image supplies visual identity or appearance. `--first`/`--last` express exact frame constraints. Seedance 2.5 supports reference-image input and lacks first/last-frame support in the current provider catalog. Choose a compatible model for a strict frame requirement.
+Use `video guide --model ID --json` and `--reference` when an image supplies visual identity or appearance. `--first`/`--last` express exact frame constraints. Seedance 2.5 supports reference-image input and lacks first/last-frame support in the current provider catalog. If the default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for an explicit human model or parameter choice.
 
 After a failure, use `task diagnose ID --json`; sanitized provider errors are retained in task records and ordinary `get/wait` output. Diagnosis never replays generation. `task inspect ID --json` verifies local artifact hashes and obtains actual video specifications through ffprobe when installed. Native request validation does not prove provider acceptance; actual pixel dimensions may differ slightly from the requested ratio.
 
@@ -70,7 +70,7 @@ Submission saves both the local task UUID and provider task ID before polling. `
 Explicit pixel size is rejected: a real native request for 1024x1536 returned 2048x2048. Use catalog ratio/resolution choices and inspect actual output. Camera controls and inpainting masks are not exposed by this CLI. Read-only estimates and catalog validation do not prove provider execution. Provider task records identify the selected model but do not independently attest the served model.
 
 
-Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`) and GPT Image 2.5 Flare (`gpt-image-2.5-flare`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). Select alternatives explicitly with `--model`; there is no automatic model fallback. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. Dedicated quick editing and text replacement use Nano Banana Pro.
+Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`) and GPT Image 2.5 Flare (`gpt-image-2.5-flare`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
 
 ## Automatic video reference preparation
 

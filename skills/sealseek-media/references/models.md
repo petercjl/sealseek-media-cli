@@ -1,6 +1,6 @@
 # SealSeek 模型参数
 
-插件提供 3 个生图模型和 2 个生视频模型。实时目录经过插件白名单过滤；参数来源为无限画板实时模型目录和官方 OpenAPI。默认模型在省略 `--model` 时自动写入请求，备选模型通过 `--model` 明确选择。
+插件提供 3 个生图模型和 2 个生视频模型。实时目录经过插件白名单过滤；参数来源为无限画板实时模型目录和官方 OpenAPI。默认模型在省略 `--model` 时自动写入请求，只有用户明确指定模型时，Agent 才传入对应的 `--model`；其余情况省略该参数，使用默认模型。任务类型、文字渲染、效果、费用或参考素材要求都不构成 Agent 自行选择模型的依据。参数不兼容时报告限制，等待用户明确选择模型或调整要求。
 
 ## 生图模型
 
@@ -27,13 +27,13 @@ Seedance 2.5 支持图片参考，当前目录不支持首尾帧。Seedance 2.0 
 
 `--video-options JSON_FILE`：通用字段 `motionIntensity`、`style`；Seedance 2.5 支持 `omniReferenceTaskType`（reference/edit/extend/auto）及 `outputFormat`（mp4/mov）；Seedance 2.0 支持 `videoWebSearch`，开启时要求纯文本输入。详见 [CLI contract](cli.md#advanced-video-parameters)。高级组合按官方声明接入，未实测组合明确标记。
 
-`image edit` 与 `image replace-text` 使用 Nano Banana Pro。`image detect-text` 为独立 OCR 文字检测，没有可选择的生图模型；替换可使用检测返回的 0–1 归一化坐标。镜头控制、局部重绘蒙版、多音频参考及图片参考角色字段尚未封装。
+`image edit` 使用默认或用户指定的生图模型：GPT Image 模型走参考图生成，用户明确指定 Nano Banana Pro 时走专用快速编辑。专用 `image replace-text` 仅支持 Nano Banana Pro，省略模型时保持默认模型并返回不支持错误；使用默认模型修改文字时可走参考图生成。`image detect-text` 为独立 OCR 文字检测，没有可选择的生图模型；替换可使用检测返回的 0–1 归一化坐标。镜头控制、局部重绘蒙版、多音频参考及图片参考角色字段尚未封装。
 
 ## 校验与结果核对
 
 执行 `models show ID --live --json` 获取当前参数，随后使用 `generate --dry-run --json` 校验，通过后加 `--submit` 提交。清晰度默认取目录首个档位，比例默认 1:1，图片默认 1 张；视频默认 5 秒。实时目录读取失败就停止提交。
 
-保持同一任务 ID，使用 `task get/wait` 跟踪，`task diagnose` 诊断，`task resume` 恢复远端查询，`task inspect` 检查本地文件哈希、尺寸和视频时长。服务错误按原任务报告；模型切换需明确授权。模型目录和校验通过不代表所有组合生成成功，输出尺寸和时长可能取整。
+保持同一任务 ID，使用 `task get/wait` 跟踪，`task diagnose` 诊断，`task resume` 恢复远端查询，`task inspect` 检查本地文件哈希、尺寸和视频时长。服务错误按原任务报告；模型切换需用户明确指定模型。模型目录和校验通过不代表所有组合生成成功，输出尺寸和时长可能取整。
 
 ## 实测范围
 

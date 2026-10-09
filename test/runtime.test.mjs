@@ -52,7 +52,12 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const base=['image','generate','--prompt','测试红杯','--model','gpt-image-2.5-flare','--reference',file,'--output',path.join(dir,'out'),'--json'];
   const dry=await cli(base);assert.equal(dry.dry_run,true);assert.equal(generations,0);assert.equal(uploads,0);
   const defaultImage=await cli(['image','generate','--prompt','default image','--dry-run']);assert.equal(defaultImage.arguments.model,'gpt-image-2.5-sunburst');
+  const defaultEdit=await cli(['image','edit','--image',file,'--prompt','adjust lighting','--dry-run']);assert.equal(defaultEdit.model,'gpt-image-2.5-sunburst');assert.equal(defaultEdit.operation,'reference-edit');
+  const explicitEdit=await cli(['image','edit','--image',file,'--model','gpt-image-2.5-flare','--prompt','adjust lighting','--dry-run']);assert.equal(explicitEdit.model,'gpt-image-2.5-flare');
+  const nanoEdit=await cli(['image','edit','--image',file,'--model','nano-banana-pro','--prompt','adjust lighting','--dry-run']);assert.equal(nanoEdit.model,'nano-banana-pro');assert.equal(nanoEdit.operation,'quick-edit');
+  await assert.rejects(cli(['image','replace-text','--image',file,'--old-text','a','--new-text','b','--dry-run']),e=>{const v=JSON.parse(e.stdout);assert.equal(v.error.code,'FEATURE_UNSUPPORTED');assert.equal(v.error.details.selected_model,'gpt-image-2.5-sunburst');assert.equal(v.error.details.automatic_model_switch,false);return true;});assert.equal(generations,0);assert.equal(uploads,0);
   const defaultVideo=await cli(['video','generate','--prompt','default video','--dry-run']);assert.equal(defaultVideo.arguments.model,'doubao-seedance-2-5');
+  await assert.rejects(cli(['video','generate','--prompt','use exact first and last frames','--first',file,'--last',file,'--submit']),e=>{const v=JSON.parse(e.stdout);assert.equal(v.error.code,'FEATURE_UNSUPPORTED');assert.equal(v.error.details.model,'doubao-seedance-2-5');assert.equal(v.error.details.rejected_flag,'--first');assert.equal(v.error.details.paid_action,false);return true;});assert.equal(generations,0);assert.equal(uploads,0);assert.equal(canvasContent,'{}');
   await assert.rejects(cli(['image','generate','--model','gpt-image-2','--prompt','blocked','--reference',file,'--submit']));assert.equal(generations,0);assert.equal(uploads,0);
 
   await assert.rejects(cli([...base,'--submit','--dry-run']));assert.equal(generations,0);

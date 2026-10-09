@@ -35,7 +35,7 @@ Global npm installs enable automatic stable updates by default: CLI invocation c
 
 ## Video workflow and diagnostics
 
-Read `models show ID --live --json` or `video guide --model ID --live --json` before choosing reference mode. `--reference` supplies appearance/content guidance; `--first` and `--last` express exact frame constraints. Seedance 2.5 supports image references, with first/last-frame inputs unsupported in the current model catalog. A strict frame requirement must use a compatible model. The CLI reports unsupported parameters with allowed values before upload/submission.
+Read `models show ID --live --json` or `video guide --model ID --live --json` before choosing reference mode. `--reference` supplies appearance/content guidance; `--first` and `--last` express exact frame constraints. Seedance 2.5 supports image references, with first/last-frame inputs unsupported in the current model catalog. If the fixed default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for the human to name a supported model or adjust the requirement. The CLI reports unsupported parameters with allowed values before upload/submission.
 ```bash
 sealseek-media video guide --model doubao-seedance-2-5 --json
 sealseek-media video generate --model doubao-seedance-2-5 --prompt "Follow the reference image; gentle camera push-in" --reference ./reference.png --ratio 9:16 --resolution 480p --duration 4 --dry-run --json
@@ -66,12 +66,12 @@ All service operations use Infinite Canvas REST; no MCP client is used. `task re
 Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and model-specific `--video-options`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
 
 ```bash
-sealseek-media image edit --image ./photo.png --model nano-banana-pro --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
+sealseek-media image edit --image ./photo.png --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
 sealseek-media image detect-text --image ./poster.png --submit --json
 sealseek-media image replace-text --image ./poster.png --old-text HELLO --new-text WELCOME --box 0.2,0.7,0.8,0.85 --output ./edited --dry-run --json
 ```
 
-Text detection is OCR, with no selectable generation model. Quick edit and text replacement use `nano-banana-pro`. Optional text boxes use normalized coordinates between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
+Text detection is OCR, with no selectable generation model. `image edit` defaults to GPT Image 2.5 Sunburst through reference-image generation and preserves an explicit human model selection. Only an explicit `--model nano-banana-pro` selects the dedicated quick-edit endpoint. Dedicated `image replace-text` supports `nano-banana-pro`; omitting `--model` keeps the default image model and returns `FEATURE_UNSUPPORTED` before network calls. Use reference-image generation for text changes with the default model. Optional text boxes use normalized coordinates between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
 
 ## Advanced video parameters
 
@@ -87,7 +87,9 @@ Multi-audio references and image reference role/description fields are not expos
 
 ## Defaults and model permission
 
-`--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro` and `gpt-image-2.5-flare`; video alternative is `doubao-seedance-2-0`. Alternatives are explicit selections; no automatic fallback. Model discovery, estimates, image editing and background generation all enforce the package allowlist.
+Fix the default or human-selected model before composing parameters. A human requirement outside that model's documented capability is `FEATURE_UNSUPPORTED` and stops before upload or generation. With default Seedance 2.5, an explicit first/last-frame requirement must report an error: preserve the model and frame semantics. A new model requires the human to name it; adjusting the frame requirement also requires the human's choice.
+
+`--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro` and `gpt-image-2.5-flare`; video alternative is `doubao-seedance-2-0`. Pass `--model` only when the human explicitly names that model; otherwise omit it. The Agent retains the default for text rendering, quality, cost, reference compatibility and recovery. If requirements are unsupported, report them and wait for an explicit human model or parameter choice. Model discovery, estimates, image editing and background generation all enforce the package allowlist.
 
 ## Automatic video reference review
 

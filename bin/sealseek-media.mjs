@@ -151,10 +151,15 @@ async function main(argv) {
     requireValue(action!=='replace-text'||options['old-text']&&options['new-text'],'INVALID_INPUT','Provide --old-text and --new-text.');
     const operationSchema=action==='edit'?'QuickEditRunParam':'EditTextParam';
     const allowed=NATIVE_CONTRACT.schemas[operationSchema].properties.model.enum;
-    requireValue(allowed.includes(options.model||'nano-banana-pro'),'FEATURE_UNSUPPORTED','The selected model does not support this image operation.',{operation:action,allowed_models:allowed});
-    assertModelAllowed(options.model||'nano-banana-pro','image');
-    const opts={...options,model:options.model||'nano-banana-pro',prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
+    const selectedModel=options.model||MODEL_POLICY.image.default;
+    assertModelAllowed(selectedModel,'image');
+    requireValue(action==='edit'||allowed.includes(selectedModel),'FEATURE_UNSUPPORTED','The selected model does not support dedicated text replacement. Use reference-image generation with this model, or have the user explicitly select a supported model.',{operation:action,selected_model:selectedModel,allowed_models:allowed,automatic_model_switch:false,paid_action:false});
+    const opts={...options,model:selectedModel,prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
     const prepared=await withConnection(options,async c=>prepare('image',opts,c.tools,c.catalog));
+    if(action==='edit'&&!allowed.includes(selectedModel)){
+      if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,operation:'reference-edit',model:prepared.args.model,arguments:prepared.args});
+      return out(await submit(prepared,options));
+    }
     prepared.operation=action==='edit'?'quick-edit':'replace-text';
     if(action==='replace-text'){
       prepared.edit_params={oldText:options['old-text'],newText:options['new-text']};
