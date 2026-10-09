@@ -67,9 +67,8 @@ export async function pollTask(cfg,id,{timeout=900000,interval=5000,onProgress}=
 export async function generate(connection,kind,args,timeout) {
   assertModelAllowed(args.model,kind);
   validateArguments(toolFor(connection.tools,`generate_${kind}`),args);
-  const canvas=await request(connection.cfg,'/canvas/create',{method:'POST',data:{title:'SealSeek Media CLI',description:'Media generation',tags:['CLI']}});
-  requireValue(canvas?.id!==undefined,'OUTPUT_CONTRACT_FAILED','Infinite Canvas returned no canvas ID.');
-  const context={canvasId:String(canvas.id),traceId:connection.traceId||crypto.randomUUID()};
+  requireValue(connection.canvasId,'CANVAS_REQUIRED','Select a canvas before generation.');
+  const context={canvasId:String(connection.canvasId),traceId:connection.traceId||crypto.randomUUID()};
   await connection.onContext?.(context);
   const editing=connection.operation;
   const route=editing==='quick-edit'?'/canvas/image/quickEditRun':editing==='replace-text'?'/canvas/image/editText':'/canvas/tasks/generate';

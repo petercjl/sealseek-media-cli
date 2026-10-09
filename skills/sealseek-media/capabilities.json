@@ -20,7 +20,8 @@
         "dry-run",
         "task-record",
         "local-artifact",
-        "automatic-video-reference-review"
+        "automatic-video-reference-review",
+        "conversation-canvas"
       ],
       "input_fields": [
         "kind",
@@ -35,7 +36,11 @@
         "status",
         "artifacts",
         "urls",
-        "reference_reviews"
+        "reference_reviews",
+        "canvas_id",
+        "canvas_url",
+        "canvas_saved",
+        "canvas_sync_error"
       ],
       "side_effects": {
         "authorization": "Generation is authorized by the user request; provider routing is configured in the calling Agent.",

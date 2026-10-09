@@ -96,3 +96,30 @@ Users continue to pass `--reference`, `--first` and `--last` normally. For both 
 Private cached review results are scoped to the service and current authentication, keyed by local content hash or URL, and rechecked before reuse. This avoids uploading and registering the same unchanged local image again. Local contents are rehashed even on cache hits. The provider may impose a material-library quota; the CLI reports it and preserves existing assets.
 
 `task get/wait/diagnose` includes `reference_reviews` with role, index, review status and asset identity. Diagnostics retain the actual submitted arguments. `Processing` falls back to bounded status polling; failed review, invalid response, unresolved submission or review timeout stops before video generation. Errors include `ASSET_REVIEW_FAILED`, `ASSET_REVIEW_INVALID_RESPONSE`, `ASSET_REVIEW_UNCERTAIN` and `ASSET_REVIEW_PENDING`. The worker neither bypasses rejection with raw references nor repeats video generation. Dry-run advertises `reference_review` but performs no upload or audit.
+
+## Conversation canvases
+
+Use a stable `--session CONVERSATION_ID` for every generation/edit in one Agent conversation. The first real submission creates and binds one canvas; subsequent requests reuse it. Dry-run creates no canvas. The Agent obtains its native conversation ID or creates one identifier once and retains it throughout the conversation. Starting a new canvas requires an explicit user request.
+
+```sh
+sealseek-media image generate --session CONVERSATION_ID --prompt "A ceramic cup" --dry-run --json
+sealseek-media image generate --session CONVERSATION_ID --prompt "A ceramic cup" --submit --json
+sealseek-media video generate --session CONVERSATION_ID --prompt "A slow camera move" --duration 5 --submit --json
+```
+
+To start another canvas in the same conversation:
+
+```sh
+sealseek-media canvas create --title "New project" --submit --json
+sealseek-media canvas use RETURNED_CANVAS_ID --session CONVERSATION_ID --yes --json
+```
+
+`--canvas ID` explicitly targets an existing canvas. Without `--session` or `--canvas`, requests reuse the account default canvas. Bindings are scoped by service account, so switching accounts cannot reuse another account’s canvas. A missing bound canvas stops with an error; automatic replacement is not performed.
+
+`canvas list`, `canvas get ID`, and `canvas tasks ID` inspect boards and generation history. Results contain `canvas_id`, `canvas_url`, and `canvas_saved`. Successful media are appended as visible elements in submission order, left to right, with at most five image/video elements per row. Existing elements and settings are preserved; each save has a private content backup. Avoid simultaneous manual editing while the CLI saves: the service offers no atomic revision check. If `canvas_sync_error` is present, use `task sync TASK_ID --json` to archive the saved outputs again without generating or charging again. Repeated archival preserves existing elements, including deleted ones. Unknown canvas-creation outcomes require inspecting `canvas list` and explicitly binding the existing canvas with `canvas use`.
+
+Canvas layout uses 48 canvas units between elements and rows, top-aligns each row, and starts the next row below the tallest element. Image and video each count as one element. Submission time determines order, including parallel requests; outputs in a batch keep their returned order. Each archival reflows CLI media. Other user elements retain their positions; CLI rows are placed below them. To organize existing CLI media without generation, use `sealseek-media canvas arrange ID --submit --json`. Legacy records recover submission order from local tasks when available; otherwise existing element order is preserved.
+
+## Canvas deletion
+
+`canvas delete --title "EXACT_TITLE" --json` previews all exact-title matches across pages. `canvas delete ID --json` previews a single canvas. After explicit human authorization, add `--submit --yes` to delete. Complete private backups of each canvas’s content and current task history are verified before the first deletion. The result returns deleted IDs and the backup directory. Backups preserve content; they do not guarantee restoration of original canvas IDs, sharing permissions, or backend generation tasks. An unknown deletion response stops immediately and is never replayed automatically.

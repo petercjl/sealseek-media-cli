@@ -25,7 +25,7 @@ test('schema mismatch rejects rather than dropping requested fields',async()=>{
 });
 test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication and file protection',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-media-test-'));
- let generations=0,uploads=0,port;
+ let generations=0,uploads=0,port,canvasContent='{}';
  const server=http.createServer(async(req,res)=>{
   if(req.method==='GET' && req.url==='/api/sealseek-infinitecanvas/api/generation-models'){const {CATALOG}=await import('../src/models.mjs');res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({code:200,data:{image:CATALOG.models.filter(m=>m.type==='image'),video:CATALOG.models.filter(m=>m.type==='video')}}));return;}
   if(req.method==='GET' && req.url==='/asset.png'){res.writeHead(200,{'Content-Type':'image/png'});res.end(png);return;}
@@ -34,6 +34,9 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   let raw='';for await(const part of req)raw+=part;
   if(req.url.endsWith('/common/upload')){uploads++;send(`http://127.0.0.1:${port}/asset.png`);return;}
   const input=raw?JSON.parse(raw):{};
+  if(req.url.endsWith('/api/user/user/info')){send({userUuid:'fixture-user'});return;}
+  if(req.url.includes('/canvas/detail/')){send({id:'fixture-canvas',content:canvasContent});return;}
+  if(req.url.endsWith('/canvas/save')){canvasContent=input.content;send(true);return;}
   if(req.url.endsWith('/canvas/create')){send({id:'fixture-canvas'});return;}
   if(req.url.endsWith('/canvas/tasks/generate')){generations++;send({taskId:input.prompt==='reject'?'rejected-task':'fixture-task'});return;}
   if(req.url.endsWith('/canvas/tasks/rejected-task')){send({status:'failed',errorMessage:'参数配置不符合任务类型约束：比例必须为 adaptive。token=private-fixture-secret'});return;}

@@ -28,7 +28,7 @@ test('native submission persists remote identity before polling; resume only pol
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const cfg={url:new URL('http://127.0.0.1:'+server.address().port),headers:{}};
  try{
-  const c={cfg,tools:toolsFor(CATALOG),onSubmitted:async value=>{assert.equal(value.remote_task_id,'remote');saved=true;}};
+  const c={cfg,canvasId:'canvas',tools:toolsFor(CATALOG),onSubmitted:async value=>{assert.equal(value.remote_task_id,'remote');saved=true;}};
   await generate(c,'image',{model:'gpt-image-2.5-sunburst',prompt:'test'},1000);await pollTask(cfg,'remote',{timeout:1000});assert.equal(posts,1);assert.equal(reads,2);
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));}
 });

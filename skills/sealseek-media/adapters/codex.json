@@ -22,7 +22,8 @@
         "dry-run",
         "task-record",
         "local-artifact",
-        "automatic-video-reference-review"
+        "automatic-video-reference-review",
+        "conversation-canvas"
       ]
     },
     {

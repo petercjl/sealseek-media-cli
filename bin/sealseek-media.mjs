@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src/core.mjs';
 import { connect, desktopConfig, call,request as canvasRequest,NATIVE_CONTRACT,validateNativeInput } from '../src/canvas.mjs';
 import { prepare, reference, upload, download } from '../src/media.mjs';
-import { submit, getJob, summary, waitJob, worker,resumeJob } from '../src/jobs.mjs';
+import { submit, getJob, summary, waitJob, worker,resumeJob,syncJob } from '../src/jobs.mjs';
+import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases} from '../src/boards.mjs';
 import { SOURCE, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
@@ -54,6 +55,14 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   task inspect ID --json               (saved file hashes, dimensions and duration)
   task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
   task download ID --output DIR --json  (uses stored URLs, never regenerates)
+  canvas create --title TEXT --submit --json
+  canvas list [--keyword TEXT] [--page N] [--limit N] --json
+  canvas get ID --json
+  canvas use ID [--session CONVERSATION_ID] --yes --json
+  canvas delete [ID | --title EXACT_TITLE] [--submit --yes] --json
+  canvas arrange ID --submit --json   (order CLI media left to right, max 5 per row)
+  canvas tasks ID --json
+  task sync ID --json                 (archive existing output; no generation)
   artifacts list [--type image|video] [--page N] [--limit N] --json
   skill source --json
   skill status|install|update --agent codex|workbuddy|sealseek [--path DIR] --json
@@ -65,6 +74,8 @@ Desktop discovery: --config FILE, --server NAME. These override the current
 user's SealSeek desktop configuration. Credentials stay outside this package.
 Default image model: gpt-image-2.5-sunburst. Default video model: doubao-seedance-2-5.
 Alternatives require an explicit --model selection; no automatic fallback.
+Generation accepts --session CONVERSATION_ID (reuse one canvas per conversation) or --canvas ID.
+Without either, reuse the account default canvas. canvas use selects it.
 Generation defaults to dry-run. --submit executes a real generation request.
 Legacy --via sealseek is accepted for compatibility and is optional.
 Same requests reuse the saved local task; --new explicitly creates another.
@@ -88,6 +99,23 @@ async function main(argv) {
       const v=await localAuthStatus(options);if(options.live)return out({...v,...await verifyCredentials(await desktopConfig(options))});
       return out({...v,verified:false});
     }
+  }
+  if(command==='canvas'){
+    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit']);
+    requireValue(['create','list','get','use','tasks','arrange','delete'].includes(action),'UNKNOWN_COMMAND','Use canvas create, list, get, use or tasks.');
+    if(action==='delete'){requireValue(args.length<=1,'INVALID_INPUT','Provide at most one canvas ID.');return withConnection(options,async c=>out({ok:true,...await deleteCanvases(c.cfg,{id:args[0],title:options.title,submit:!!options.submit,yes:!!options.yes})}));}
+    requireValue(args.length===(['get','use','tasks','arrange','delete'].includes(action)?1:0),'INVALID_INPUT','Provide one canvas ID for get/use/tasks.');
+    if(['create','arrange'].includes(action))requireValue(options.submit,'SUBMIT_REQUIRED','Creating a canvas requires --submit.');
+    if(action==='use')requireValue(options.yes,'CONFIRMATION_REQUIRED','Selecting a canvas requires --yes.');
+    return withConnection(options,async c=>{
+      if(action==='arrange')return out({ok:true,canvas_id:args[0],...await arrangeCanvas(c.cfg,args[0])});
+      if(action==='create')return out({ok:true,...canvasSummary(await createCanvas(c.cfg,options.title))});
+      if(action==='list')return out({ok:true,...await listCanvases(c.cfg,{page:Number(options.page||1),limit:Number(options.limit||20),keyword:options.keyword})});
+      if(action==='use')return out({ok:true,...await useCanvas(c.cfg,args[0],options.session||process.env.SEALSEEK_MEDIA_SESSION_ID||process.env.CODEX_THREAD_ID)});
+      const board=await getCanvas(c.cfg,canvasId(args[0]));
+      if(action==='tasks')return out({ok:true,...canvasSummary(board),tasks:await canvasRequest(c.cfg,'/canvas/tasks?'+new URLSearchParams({canvasId:args[0]}))});
+      const content=JSON.parse(board.content||'{}');return out({ok:true,...canvasSummary(board),elements:content.elements||[],element_count:(content.elements||[]).filter(e=>!e.isDeleted).length});
+    });
   }
   if(command==='models'){
     const {options,args}=parse(rest,[...common,'live','type','resolution','ratio','duration','count']);
@@ -114,7 +142,7 @@ async function main(argv) {
   }
   if(command==='video'&&action==='guide'){const {options,args}=parse(rest,[...common,'model','live']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');if(options.live)return withConnection(options,async c=>out({ok:true,...videoGuide(options.model,{catalog:c.catalog,tools:c.tools})}));return out({ok:true,...videoGuide(options.model)});}
   if(command==='image'&&['edit','replace-text','detect-text'].includes(action)){
-    const {options,args}=parse(rest,[...common,'image','model','prompt','old-text','new-text','box','output','timeout','dry-run','submit','new']);requireValue(!args.length&&options.image,'INVALID_INPUT','Provide --image FILE_OR_URL.');
+    const {options,args}=parse(rest,[...common,'image','model','prompt','old-text','new-text','box','output','canvas','session','timeout','dry-run','submit','new']);requireValue(!args.length&&options.image,'INVALID_INPUT','Provide --image FILE_OR_URL.');
     if(action==='detect-text'){
       requireValue(!options.model,'INVALID_INPUT','Text detection is OCR and has no selectable generation model.');
       const ref=await reference(options.image);requireValue(options.submit&&!options['dry-run'],'SUBMIT_REQUIRED','Text detection requires --submit.');
@@ -137,10 +165,10 @@ async function main(argv) {
     return out(await submit(prepared,options));
   }
   if (['image','video'].includes(command) && action === 'generate') {
-    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','timeout','dry-run','via','submit','new'],['reference','video-reference']);
+    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','canvas','session','timeout','dry-run','via','submit','new'],['reference','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
+    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,canvas_id:request.canvas_id,canvas_session:request.canvas_session,canvas_policy:request.canvas_id?'explicit':request.canvas_session?'conversation':'account-default',kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
     return out(await submit(request,options));
   }
   if (command==='image' && action==='upload') {
@@ -151,6 +179,7 @@ async function main(argv) {
   }
   if (command==='task') {
     const {options,args}=parse(rest,['json','timeout','output']); requireValue(args.length===1,'INVALID_INPUT','Provide one task UUID.');
+    if(action==='sync')return out(await syncJob(args[0]));
     if (action==='get') return out(summary(await getJob(args[0])));
     if(action==='resume')return out(await resumeJob(args[0]));
     if (action==='diagnose'){const job=await getJob(args[0]);return out(diagnose(job,summary(job)));}

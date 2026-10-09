@@ -49,7 +49,7 @@ test('approved URI input is checked; changed local file cannot reuse a cached re
 test('video preflight reviews first and last frames before one generation; image generation stays unchanged',async()=>{
  const previous=process.env.SEALSEEK_MEDIA_STATE_DIR;const state=await fs.mkdtemp(path.join(os.tmpdir(),'media-execute-'));process.env.SEALSEEK_MEDIA_STATE_DIR=state;
  try{
-  await fixture(call=>call.route.endsWith('/auto-review')||call.route.endsWith('/ark/status')?active:call.route.endsWith('/canvas/create')?{id:'canvas'}:call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/result.mp4'],images:['https://example.com/result.png']},async(c,o)=>{
+  await fixture(call=>call.route.endsWith('/auto-review')||call.route.endsWith('/ark/status')?active:call.route.endsWith('/canvas/create')?{id:'canvas'}:call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/result.mp4'],images:['https://example.com/result.png']},async(c,o)=>{c.canvasId='canvas';
    const req=await prepare('video',{model:'doubao-seedance-2-0',prompt:'test',duration:5,first:'https://example.com/first.png',last:'https://example.com/last.png'},c.tools,CATALOG);
    assert.equal(o.calls.length,0,'dry-run preparation must not review or upload');assert(req.reference_review.automatic);
    const reviews=[];c.onReferenceReview=v=>reviews.push(v);await execute(c,req,1000);
