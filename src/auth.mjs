@@ -32,18 +32,18 @@ export async function backupFile(p) {
  requireValue(hash(await fs.readFile(backup))===hash(bytes),'BACKUP_VERIFICATION_FAILED','Credential backup verification failed.');
  return {backup,bytes,digest:hash(bytes),mode:before.mode&0o777};
 }
-export async function saveToken(token,{deviceType,method}={}) {
+export async function saveToken(token,{deviceType,method,channel}={}) {
  requireValue(typeof token==='string'&&token.length>20&&!/[\r\n]/.test(token),'AUTH_REJECTED','The login provider returned an invalid credential.');
  const metadata=tokenMetadata(token);requireValue(metadata.expired!==true,'AUTH_EXPIRED','The login provider returned an expired credential.');
  const p=authFile();let backup;
  if(await exists(p)){await profile();backup=await backupFile(p);}
- const value={owner:META.name,version:1,endpoint:MEDIA_ENDPOINT,token,...(deviceType?{device_type:deviceType}:{}),...(method?{login_method:method}:{}),saved_at:new Date().toISOString()};
+ const value={owner:META.name,version:1,endpoint:MEDIA_ENDPOINT,token,...(channel?{login_channel:channel}:{}),...(deviceType?{device_type:deviceType}:{}),...(method?{login_method:method}:{}),saved_at:new Date().toISOString()};
  if(backup){const tmp=p+'.'+crypto.randomUUID()+'.tmp';await createJson(tmp,value);requireValue(hash(await fs.readFile(p))===backup.digest,'CONFIG_CHANGED','Credential profile changed during login.');await fs.rename(tmp,p);await fs.chmod(p,0o600);}
  else await createJson(p,value);
  return {credential_file:p,...metadata,...(backup?{backup:backup.backup}:{})};
 }
 export async function localAuthStatus(options={}) {
- if(!options.config&&!process.env.SEALSEEK_MEDIA_DESKTOP_CONFIG){const value=await profile();if(value)return value.logged_out?{ok:true,present:false,source:'plugin-profile',logged_out:true,expires_at:null,expired:null}:{ok:true,present:true,source:'plugin-profile',credential_file:authFile(),...tokenMetadata(value.token),device_type:value.device_type||'unknown',login_method:value.login_method||'unknown'};}
+ if(!options.config&&!process.env.SEALSEEK_MEDIA_DESKTOP_CONFIG){const value=await profile();if(value)return value.logged_out?{ok:true,present:false,source:'plugin-profile',logged_out:true,expires_at:null,expired:null}:{ok:true,present:true,source:'plugin-profile',credential_file:authFile(),...tokenMetadata(value.token),device_type:value.device_type||'unknown',login_method:value.login_method||'unknown',login_channel:value.login_channel||'unknown'};}
  const p=desktopFile(options),cfg=await readJson(p).catch(()=>null),headers=cfg?.mcp?.servers?.[options.server||process.env.SEALSEEK_MEDIA_SERVER||'sealseek-canvas']?.headers||{};
  const entry=Object.entries(headers).find(([k,v])=>isCredentialHeader(k)&&typeof v==='string'&&v.trim());
  return {ok:true,present:!!entry,source:entry?'desktop-config':null,credential_file:entry?p:null,...(entry?tokenMetadata(entry[1]):{expires_at:null,expired:null})};

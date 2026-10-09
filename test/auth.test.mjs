@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { META,createJson } from '../src/core.mjs';
 import { saveToken,logout,localAuthStatus,tokenMetadata,authFile } from '../src/auth.mjs';
 import { desktopConfig,authenticatedFetch } from '../src/service.mjs';
-import { serveLogin,loginPath,loginStatus } from '../src/auth-web.mjs';
+import { serveLogin,loginPath,loginStatus,startLogin } from '../src/auth-web.mjs';
 const jwt=exp=>'eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({iat:1700000000,exp})).toString('base64url')+'.fixture-signature';
 
 test('credential expiry, private backup/removal, managed profile and unrelated config preservation',async()=>{
@@ -78,25 +78,30 @@ test('QR failure, missing account binding and expiry never store credentials',as
  }finally{mock.closeAllConnections();await new Promise(r=>mock.close(r));if(prev===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=prev;await fs.rm(dir,{recursive:true,force:true});}
 });
 
-test('SMS client login uses official device channel, verifies before storage and never exposes token',async()=>{
+for(const channel of ['SEALSEEK','PLUGIN'])test(`SMS ${channel} login sends the official channel for SMS and login, verifies before storage and never exposes token`,async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-sms-test-')),prev=process.env.SEALSEEK_MEDIA_STATE_DIR;process.env.SEALSEEK_MEDIA_STATE_DIR=dir;
  const token=jwt(Math.floor(Date.now()/1000)+600);let verified=false,saved=false,sends=0,loginBody;
  const mock=http.createServer(async(req,res)=>{
   let raw='';for await(const part of req)raw+=part;
   if(req.url.includes('getQrParams'))assert.fail('SMS login must not create a QR session');
-  if(req.url.includes('sendCode'))sends++;
+  if(req.url.includes('sendCode')){sends++;assert.equal(new URL(req.url,'http://fixture').searchParams.get('channel'),channel);}
   if(req.url.includes('phoneAndVerifyCodeLogin'))loginBody=JSON.parse(raw);
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code:200,data:loginBody?{token}:true}));
  });
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));let h;
  try{
-  const id=crypto.randomUUID();await createJson(loginPath(id),{owner:META.name,id,status:'starting',device_type:'CLIENT',login_preference:'sms'});
-  h=await serveLogin(id,{base:'http://127.0.0.1:'+mock.address().port,verify:async v=>{assert.equal(v,token);verified=true;},save:async(v,metadata)=>{assert(verified);assert.equal(v,token);assert.deepEqual(metadata,{deviceType:'CLIENT',method:'sms'});saved=true;return {};}});
+  const id=crypto.randomUUID();await createJson(loginPath(id),{owner:META.name,id,status:'starting',login_channel:channel,device_type:'CLIENT',login_preference:'sms'});
+  h=await serveLogin(id,{base:'http://127.0.0.1:'+mock.address().port,verify:async v=>{assert.equal(v,token);verified=true;},save:async(v,metadata)=>{assert(verified);assert.equal(v,token);assert.deepEqual(metadata,{channel,deviceType:'CLIENT',method:'sms'});saved=true;return {};}});
   const session=await loginStatus(id),origin=new URL(session.login_url).origin;
   const post=(action,body,source=origin)=>fetch(session.login_url+'/sms/'+action,{method:'POST',headers:{Origin:source,'Content-Type':'application/json'},body:JSON.stringify(body)});
   const phone='13800000000';assert.equal((await post('send',{phone},'https://untrusted.example')).status,403);assert.equal(sends,0);
   assert.equal((await post('send',{phone})).status,200);assert.equal(sends,1);
   const response=await post('login',{phone,code:'123456'});assert.equal(response.status,200);assert(!(await response.text()).includes(token));
-  assert.equal(loginBody.deviceType,'CLIENT');assert(saved);assert.equal((await loginStatus(id)).login_method,'sms');assert(!JSON.stringify(await loginStatus(id)).includes(token));
+  assert.equal(loginBody.channel,channel);assert.equal(loginBody.deviceType,'CLIENT');assert(saved);assert.equal((await loginStatus(id)).login_method,'sms');assert(!JSON.stringify(await loginStatus(id)).includes(token));
  }finally{h?.close();mock.closeAllConnections();await new Promise(r=>mock.close(r));if(prev===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=prev;await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('PLUGIN QR and unknown login channels fail before creating a login session',async()=>{
+ await assert.rejects(startLogin({channel:'plugin',method:'wechat'}),{code:'FEATURE_UNSUPPORTED'});
+ await assert.rejects(startLogin({channel:'other'}),{code:'INVALID_INPUT'});
 });

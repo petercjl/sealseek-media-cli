@@ -28,7 +28,7 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   models estimate ID [--resolution VALUE] [--ratio RATIO]
     [--duration SECONDS | --count N] --json (read-only pricing; no generation)
   auth status [--live] [--login-id UUID] --json
-  auth login [--device client|web] [--method sms|wechat] --json                  (local webpage; default CLIENT channel and SMS login)
+  auth login --json                  (local webpage; independent PLUGIN channel, SMS login only)
   auth logout [--desktop] --yes --json (private backups before credential removal)
   image generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
     [--ratio RATIO] [--resolution VALUE] [--count 1-4]
@@ -91,8 +91,8 @@ async function main(argv) {
   if (command === '_worker') return worker(action);
   if(command==='_auth-worker')return serveLogin(action,{verify:async token=>verifyCredentials(await desktopConfig({authToken:token}))});
   if(command==='auth'){
-    const {options,args}=parse(rest,[...common,'live','login-id','desktop','yes','device','method']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if(action==='login')return out({ok:true,...await startLogin({device:options.device||'client',method:options.method||'sms'})});
+    const {options,args}=parse(rest,[...common,'live','login-id','desktop','yes']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
+    if(action==='login')return out({ok:true,...await startLogin()});
     if(action==='logout')return out(await logout(options));
     if(action==='status'){
       if(options['login-id'])return out({ok:true,...await loginStatus(options['login-id'])});

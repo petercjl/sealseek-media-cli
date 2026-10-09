@@ -96,7 +96,7 @@
     },
     {
       "id": "media.authenticate",
-      "purpose": "Authorize the current user through official CLIENT/SMS login or explicitly selected WeChat QR login",
+      "purpose": "Authorize the current user through the fixed official PLUGIN channel with SMS login",
       "required": false,
       "required_features": [
         "web-login",
