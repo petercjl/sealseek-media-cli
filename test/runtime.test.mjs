@@ -65,6 +65,7 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   let done;for(let i=0;i<30;i++){done=await cli(['task','get',job.task_id]);if(done.status==='succeeded')break;await new Promise(r=>setTimeout(r,100));}
   assert.equal(done.status,'succeeded');assert.equal(generations,1);assert.equal(uploads,1);assert.equal(done.artifacts[0].size,png.length);
   const permissions=(await fs.stat(path.join(dir,'state/jobs',`${job.task_id}.json`))).mode&0o777;if(process.platform!=='win32')assert.equal(permissions,0o600);
+  const legacyPath=path.join(dir,'state/jobs',`${job.task_id}.json`),legacy=await readJson(legacyPath);delete legacy.request.archive;delete legacy.request.placement;await fs.writeFile(legacyPath,JSON.stringify(legacy));
   const duplicate=await cli([...base,'--submit','--via','sealseek']);assert.equal(duplicate.task_id,job.task_id);assert.equal(duplicate.deduplicated,true);assert.equal(generations,1);
   await assert.rejects(cli(['image','upload',file]));assert.equal(uploads,1);
   const uploaded=await cli(['image','upload',file,'--submit']);assert(uploaded.url);assert.equal(uploads,2);assert.equal(generations,1);
@@ -73,6 +74,18 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const bad=path.join(dir,'bad.png');await fs.writeFile(bad,'not an image');await assert.rejects(reference(bad),{code:'INVALID_REFERENCE'});
   const rejected=await cli(['image','generate','--model','gpt-image-2.5-flare','--prompt','reject','--submit']);const failed=await cli(['task','wait',rejected.task_id,'--timeout','5']);assert.equal(failed.status,'failed');assert.equal(failed.error.code,'PROVIDER_FAILURE');
   const diagnosis=await cli(['task','diagnose',rejected.task_id]);assert.equal(diagnosis.provider_error_available,true);assert.match(diagnosis.provider_error.details.provider_text,/adaptive/);assert(!JSON.stringify(diagnosis).includes('private-fixture-secret'));assert.equal(generations,2);
+  const placementFile=path.join(dir,'placement.json');await fs.writeFile(placementFile,JSON.stringify({mode:'explicit',positions:[{x:123,y:456,width:200,height:300}]}));
+  const placedDry=await cli(['image','generate','--prompt','placed','--placement',placementFile,'--dry-run']);assert.equal(placedDry.placement.positions[0].x,123);
+  const beforeNone=canvasContent;
+  const none=await cli(['image','generate','--prompt','generation without visible archival','--archive','none','--submit']);
+  const noneDone=await cli(['task','wait',none.task_id,'--timeout','5']);assert.equal(noneDone.status,'succeeded');assert.equal(noneDone.archive,'none');assert.equal(noneDone.canvas_saved,null);assert.equal(canvasContent,beforeNone);assert.equal(generations,3);
+  const mediaFile=path.join(dir,'import.json');await fs.writeFile(mediaFile,JSON.stringify({id:'existing-asset',kind:'image',urls:[`http://127.0.0.1:${port}/asset.png`],placement:{mode:'explicit',positions:[{x:123,y:456,width:200,height:300}]}}));
+  const preview=await cli(['canvas','add','fixture-canvas','--media',mediaFile]);assert.equal(preview.dry_run,true);assert.equal(canvasContent,beforeNone);
+  const imported=await cli(['canvas','add','fixture-canvas','--media',mediaFile,'--submit']);assert.equal(imported.added,1);assert.equal(generations,3);
+  let elements=JSON.parse(canvasContent).elements;const importedElement=elements.at(-1);assert.equal(importedElement.x,123);assert.equal(importedElement.y,456);assert.equal(importedElement.width,200);
+  assert.equal((await cli(['canvas','add','fixture-canvas','--media',mediaFile,'--submit'])).added,0);assert.equal(JSON.parse(canvasContent).elements.length,elements.length);
+  const arranged=await cli(['canvas','arrange','fixture-canvas','--submit']);assert.equal(arranged.layout.mode,'grid');assert.equal(generations,3);
+
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true});}
 });
 

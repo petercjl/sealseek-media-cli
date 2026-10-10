@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { ROOT, META, stateRoot, requireValue, hash, readJson, createJson, replaceJob, publicError } from './core.mjs';
 import { connect,pollTask,request as canvasRequest } from './canvas.mjs';
+import {DEFAULT_PLACEMENT} from './placement.mjs';
 import {selectCanvas,archiveMedia,accountScope,generationParams} from './boards.mjs';
 import { execute, download,generationResult } from './media.mjs';
 
@@ -26,7 +27,7 @@ export async function getJob(id) {
   return job;
 }
 export function summary(job) {
-  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, transport:job.request.transport||'legacy-mcp',remote_task_id:job.remote?.remote_task_id||null,canvas_id:job.remote?.canvasId||job.request.canvas_id||null,canvas_url:job.canvas_sync?.canvas_url||job.request.canvas_url||null,canvas_saved:job.canvas_sync?.saved??null,canvas_sync_error:job.canvas_sync_error||null,model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, reference_reviews:job.reference_reviews||[], artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.canvas_sync_error ? ['Media was generated, but canvas archival needs task sync. Do not regenerate.'] : job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
+  return { ok: !['failed','uncertain','download_failed'].includes(job.status), task_id: job.id, status: job.status, kind: job.request.kind, transport:job.request.transport||'legacy-mcp',remote_task_id:job.remote?.remote_task_id||null,canvas_id:job.remote?.canvasId||job.request.canvas_id||null,canvas_url:job.canvas_sync?.canvas_url||job.request.canvas_url||null,archive:job.request.archive||'canvas',placement:job.request.placement||null,canvas_saved:job.canvas_sync?.saved??null,canvas_sync_error:job.canvas_sync_error||null,model: job.request.args.model, actual_model: job.result?.model_verified ? job.result.actual_model : null, requested_count: job.request.args.num || 1, actual_count: job.result?.count ?? null, reference_reviews:job.reference_reviews||[], artifacts: job.files || [], urls: job.result?.urls || [], cost: job.result?.cost ?? null, ...(job.error ? { error: job.error } : {}), warnings: job.canvas_sync_error ? ['Media was generated, but canvas archival needs task sync. Do not regenerate.'] : job.status === 'uncertain' ? ['Inspect SealSeek history before any new submission.'] : job.result?.count < (job.request.args.num || 1) ? ['Provider returned fewer results than requested.'] : [] };
 }
 export async function submit(request, options) {
   requireValue(options.submit === true, 'SUBMIT_REQUIRED', 'Real generation requires --submit.');
@@ -36,7 +37,8 @@ export async function submit(request, options) {
   requireValue(Number.isInteger(timeout) && timeout >= 10 && timeout <= 3600, 'INVALID_INPUT', 'Timeout must be 10-3600 seconds.');
   const c=await connect(options);
   try {Object.assign(request,await selectCanvas(c.cfg,request.canvas_id,request.canvas_session));}finally{await c.close();}
-  const digest = hash({canvas_id:request.canvas_id,account_scope:request.account_scope, kind: request.kind, args: request.args, refs: request.refs, first: request.first, last: request.last,...(request.videoRefs?.length?{videoRefs:request.videoRefs}:{}),...(request.audioRef?{audioRef:request.audioRef}:{}),...(request.operation?{operation:request.operation,edit_params:request.edit_params}:{}) });
+  const customPlacement=request.placement&&Object.entries(request.placement).some(([k,v])=>DEFAULT_PLACEMENT[k]!==v);
+  const digest = hash({...(request.archive==='none'?{archive:'none'}:{}),...(customPlacement?{placement:request.placement}:{}),canvas_id:request.canvas_id,account_scope:request.account_scope, kind: request.kind, args: request.args, refs: request.refs, first: request.first, last: request.last,...(request.videoRefs?.length?{videoRefs:request.videoRefs}:{}),...(request.audioRef?{audioRef:request.audioRef}:{}),...(request.operation?{operation:request.operation,edit_params:request.edit_params}:{}) });
   const index = path.join(stateRoot(), 'requests', `${digest}${options.new ? '-' + crypto.randomUUID() : ''}.json`);
   const id = crypto.randomUUID();
   try { await createJson(index, { owner: META.name, id }); }
@@ -67,7 +69,7 @@ export async function worker(id) {
     job.result = job.resume_only?generationResult([await pollTask(connection.cfg,job.remote.remote_task_id,{timeout:job.timeout*1000})],job.request):await execute(connection, job.request, job.timeout*1000);
     // Persist remote output before downloading so download failure never causes regeneration.
     job.status = 'generated'; await replaceJob(p,job);
-    try{job.canvas_sync=await archiveJob(connection.cfg,job);delete job.canvas_sync_error;}catch(e){job.canvas_sync_error=publicError(e);}
+    try{if(job.request.archive!=='none')job.canvas_sync=await archiveJob(connection.cfg,job);delete job.canvas_sync_error;}catch(e){job.canvas_sync_error=publicError(e);}
     await replaceJob(p,job);
     if (job.request.output) job.files = await download(job.result.urls, job.request.kind, job.request.output,job.id);
     job.status = 'succeeded';
@@ -100,7 +102,7 @@ export async function waitJob(id, seconds = 30) {
 
 async function archiveJob(cfg,job){
  const task=await canvasRequest(cfg,'/canvas/tasks/'+encodeURIComponent(job.remote.remote_task_id));
- return archiveMedia(cfg,job.remote.canvasId,{id:job.remote.remote_task_id,kind:job.request.kind,urls:job.result.urls,ratio:job.request.args.aspect_ratio,order:job.created_at,generationParams:generationParams(job.executed_arguments||job.request.args,task)});
+ return archiveMedia(cfg,job.remote.canvasId,{id:job.remote.remote_task_id,kind:job.request.kind,urls:job.result.urls,ratio:job.request.args.aspect_ratio,order:job.created_at,generationParams:generationParams(job.executed_arguments||job.request.args,task),placement:job.request.placement?.mode==='explicit'?{...job.request.placement,positions:job.request.placement.positions.slice(0,job.result.urls.length)}:job.request.placement});
 }
 export async function syncJob(id){
  const job=await getJob(id);requireValue(job.result?.urls?.length&&job.remote?.canvasId,'INVALID_INPUT','This task has no generated media to archive.');

@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {request} from './canvas.mjs';
 import {authenticatedFetch} from './service.mjs';
-import {META,stateRoot,hash,requireValue,createJson,readJson,replaceJob,exists} from './core.mjs';
+import {META,stateRoot,hash,requireValue,createJson,readJson,replaceJob,exists,secureUrl} from './core.mjs';
+import {validatePlacement} from './placement.mjs';
 
 export function canvasId(value){requireValue(typeof value==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(value),'INVALID_INPUT','Provide a valid canvas ID.');return value;}
 export function canvasSummary(v){return {canvas_id:String(v.id),title:v.title,canvas_url:v.canvasUrl,updated_at:v.updateTime};}
@@ -57,8 +58,10 @@ export async function selectCanvas(cfg,id,session){
 
 export const LAYOUT={columns:5,gap:48};
 function ownedMedia(e){return e.type==='image'&&e.customData?.cliTaskId;}
-function bottom(e){const w=Number(e.width||0),h=Number(e.height||0),a=Number(e.angle||0);return Number(e.y||0)+h/2+(Math.abs(Math.sin(a))*w+Math.abs(Math.cos(a))*h)/2;}
-export function arrangeContent(content,orders={}){
+function bounds(e){const w=Number(e.width||0),h=Number(e.height||0),a=Number(e.angle||0),cx=Number(e.x||0)+w/2,cy=Number(e.y||0)+h/2,dx=(Math.abs(Math.cos(a))*w+Math.abs(Math.sin(a))*h)/2,dy=(Math.abs(Math.sin(a))*w+Math.abs(Math.cos(a))*h)/2;return {left:cx-dx,right:cx+dx,top:cy-dy,bottom:cy+dy};}
+function bottom(e){return bounds(e).bottom;}
+export function arrangeContent(content,orders={},options={}){
+  const layout=validatePlacement({...options,mode:'grid'});
   const v=JSON.parse(content||'{}');requireValue(v&&typeof v==='object'&&!Array.isArray(v),'OUTPUT_CONTRACT_FAILED','Canvas content must be an object.');
   requireValue(!v.elements||Array.isArray(v.elements),'OUTPUT_CONTRACT_FAILED','Canvas elements must be an array.');v.elements||=[];
   const media=v.elements.filter(e=>!e.isDeleted&&ownedMedia(e));
@@ -75,17 +78,17 @@ export function arrangeContent(content,orders={}){
     return a.i-b.i;
   }).map(v=>v.e);
   const others=v.elements.filter(e=>!e.isDeleted&&!ownedMedia(e));
-  let y=others.length?Math.max(0,...others.map(bottom))+LAYOUT.gap:0;
-  for(let start=0;start<indexed.length;start+=LAYOUT.columns){
-    const row=indexed.slice(start,start+LAYOUT.columns);let x=0,height=0;
+  let y=others.length?Math.max(0,...others.map(bottom))+layout.gap:0;
+  for(let start=0;start<indexed.length;start+=layout.columns){
+    const row=indexed.slice(start,start+layout.columns);let x=0,height=0;
     for(const e of row){
       requireValue(Number.isFinite(e.width)&&e.width>0&&Number.isFinite(e.height)&&e.height>0,'OUTPUT_CONTRACT_FAILED','Media dimensions must be positive.');
       if(e.x!==x||e.y!==y||e.angle!==0){e.x=x;e.y=y;e.angle=0;e.version=(e.version||0)+1;e.versionNonce=crypto.randomInt(1,2147483647);e.updated=Date.now();}
-      x+=e.width+LAYOUT.gap;height=Math.max(height,e.height);
+      x+=e.width+layout.gap;height=Math.max(height,e.height);
     }
-    y+=height+LAYOUT.gap;
+    y+=height+layout.gap;
   }
-  return {content:JSON.stringify(v),element_ids:indexed.map(e=>e.id),layout:LAYOUT};
+  return {content:JSON.stringify(v),element_ids:indexed.map(e=>e.id),layout:{mode:layout.mode,columns:layout.columns,gap:layout.gap}};
 }
 export function generationParams(args={},task={}){
   const p=task.params||{},out={generatorName:'SealSeek Media CLI'};
@@ -103,21 +106,42 @@ export function generationParams(args={},task={}){
   for(const [key,fallback] of [['referenceAudio',args.reference_audio],['firstFrameImage',args.first_frame_image],['lastFrameImage',args.last_frame_image]]){const value=p[key]??fallback;if(mediaUrl(value))out[key]=value;}
   return out;
 }
-export function appendMedia(content,{id,kind,urls,ratio='1:1',order,generationParams:params}){
+export function appendMedia(content,{id,kind,urls,ratio='1:1',order,generationParams:params,placement={}}){
+  const layout=validatePlacement(placement);
+  if(params){requireValue(typeof params==='object'&&!Array.isArray(params),'INVALID_INPUT','Generation details must be an object.');params=generationParams({}, {...params,params});}
+  requireValue(typeof id==='string'&&id.length>0&&id.length<=200&&['image','video'].includes(kind)&&Array.isArray(urls)&&urls.length>0&&urls.length<=100,'INVALID_INPUT','Provide an id, image/video kind and 1-100 URLs.');
+  urls=urls.map(url=>secureUrl(url).href);
+  requireValue(layout.mode!=='explicit'||layout.positions.length===urls.length,'INVALID_INPUT','Provide one position per output.');
   const v=JSON.parse(content||'{}');requireValue(v&&typeof v==='object'&&!Array.isArray(v),'OUTPUT_CONTRACT_FAILED','Canvas content must be an object.');
   requireValue(!v.elements||Array.isArray(v.elements),'OUTPUT_CONTRACT_FAILED','Canvas elements must be an array.');
   v.elements||=[];v.imageUrlMap||={};
+  requireValue(typeof ratio==='string'&&/^[1-9]\d*:[1-9]\d*$/.test(ratio),'INVALID_INPUT','Ratio must be positive integers W:H.');
   const parts=ratio.split(':').map(Number),aspect=parts.length===2&&parts.every(n=>n>0)?parts[0]/parts[1]:1;
   const added=[];
   for(const [i,url] of urls.entries()){
     const elementId='cli-'+hash({id,kind,i}).slice(0,24),existing=v.elements.find(e=>e.id===elementId);
-    if(existing){if(!existing.isDeleted&&params){const previous=existing.customData?.generationParams;const merged={...previous,...params};if(JSON.stringify(previous)!==JSON.stringify(merged)){existing.customData={...existing.customData,generationParams:merged};existing.version=(existing.version||1)+1;existing.updated=Date.now();}}continue;}
+    if(existing){requireValue((kind==='video'?existing.customData?.videoUrl:existing.customData?.fileUrl)===url,'IDEMPOTENCY_CONFLICT','This media id is already associated with different content.');if(!existing.isDeleted&&params){const previous=existing.customData?.generationParams;const merged={...previous,...params};if(JSON.stringify(previous)!==JSON.stringify(merged)){existing.customData={...existing.customData,generationParams:merged};existing.version=(existing.version||1)+1;existing.updated=Date.now();}}continue;}
     const fileId='file-'+elementId,thumbnail=kind==='video'?url+(url.includes('?')?'&':'?')+'x-oss-process=video/snapshot,t_0,w_1920,f_jpg,m_fast':url;
-    const element={type:'image',id:elementId,x:0,y:0,width:320,height:Math.round(320/aspect),fileId,scale:[1,1],isDeleted:false,locked:false,opacity:100,angle:0,strokeColor:'transparent',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:0,strokeStyle:'solid',roughness:0,roundness:null,seed:1,version:1,versionNonce:1,link:null,groupIds:[],frameId:null,boundElements:[],updated:Date.now(),status:'saved',strokeSharpness:'sharp',customData:{fileUrl:thumbnail,fileMimeType:kind==='video'?'image/jpeg':'image/png',...(kind==='video'?{isVideoThumbnail:true,videoUrl:url,displayName:'CLI video'}:{}),cliTaskId:id,cliOutputIndex:i,...(order?{cliGenerationOrder:order}:{})}};
+    const pos=layout.mode==='explicit'?layout.positions[i]:{},width=pos.width??layout.width,height=pos.height??layout.height??Math.max(1,Math.round(width/aspect));
+    requireValue(Number.isFinite(height)&&height>0&&height<=100000,'INVALID_INPUT','Derived height exceeds placement limits; provide explicit dimensions.');
+    const element={type:'image',id:elementId,x:pos.x??0,y:pos.y??0,width,height,fileId,scale:[1,1],isDeleted:false,locked:false,opacity:100,angle:0,strokeColor:'transparent',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:0,strokeStyle:'solid',roughness:0,roundness:null,seed:1,version:1,versionNonce:1,link:null,groupIds:[],frameId:null,boundElements:[],updated:Date.now(),status:'saved',strokeSharpness:'sharp',customData:{fileUrl:thumbnail,fileMimeType:kind==='video'?'image/jpeg':({'.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif'}[path.extname(new URL(url).pathname).toLowerCase()]||'image/png'),...(kind==='video'?{isVideoThumbnail:true,videoUrl:url,displayName:'CLI video'}:{}),cliTaskId:id,cliOutputIndex:i,...(order?{cliGenerationOrder:order}:{})}};
     if(params)element.customData.generationParams=structuredClone(params);
+    if(layout.mode==='append'){
+      const active=v.elements.filter(e=>!e.isDeleted),media=active.filter(ownedMedia),last=media.at(-1);
+      const count=last?.customData?.cliAppendSlot;
+      const slot=Number.isInteger(count)?count+1:layout.columns;
+      const row=last?media.filter(e=>e.y===last.y):[];
+      let x=last&&slot<layout.columns?Math.max(...row.map(e=>bounds(e).right))+layout.gap:0;
+      let y=last&&slot<layout.columns?last.y:(active.length?Math.max(0,...active.map(bottom))+layout.gap:0);
+      // Append never changes existing elements. Fall below occupied bounds on collision.
+      if(active.some(e=>{const b=bounds(e);return x<b.right&&x+width>b.left&&y<b.bottom&&y+height>b.top;})){
+        x=0;y=Math.max(0,...active.map(bottom))+layout.gap;
+      }
+      element.x=x;element.y=y;element.customData.cliAppendSlot=x===0?0:slot;
+    }
     v.elements.push(element);v.imageUrlMap[fileId]=thumbnail;added.push(elementId);
   }
-  return {...arrangeContent(JSON.stringify(v),order?{[id]:order}:{}),added};
+  return layout.mode==='grid'?{...arrangeContent(JSON.stringify(v),order?{[id]:order}:{},layout),added}:{content:JSON.stringify(v),added,layout};
 }
 async function saveContent(cfg,board,before,next){
   const backup=path.join(stateRoot(),'canvases','backups',board+'-'+crypto.randomUUID()+'.json');
@@ -133,10 +157,10 @@ export async function archiveMedia(cfg,board,media){
   return locked('save-'+hash({origin:cfg.url.origin,board}),async()=>{
     const before=await getCanvas(cfg,board),next=appendMedia(before.content,media);
     if(next.content===JSON.stringify(JSON.parse(before.content||'{}')))return {saved:true,added:0,canvas_url:before.canvasUrl};
-    return {...await saveContent(cfg,board,before,next),added:next.added.length,layout:LAYOUT};
+    return {...await saveContent(cfg,board,before,next),added:next.added.length,layout:next.layout};
   });
 }
-export async function arrangeCanvas(cfg,board){
+export async function arrangeCanvas(cfg,board,placement={}){
   canvasId(board);
   return locked('save-'+hash({origin:cfg.url.origin,board}),async()=>{
     const before=await getCanvas(cfg,board),orders={};
@@ -144,9 +168,9 @@ export async function arrangeCanvas(cfg,board){
       if(!file.endsWith('.json'))continue;const job=await readJson(path.join(stateRoot(),'jobs',file)).catch(()=>null);
       if(job?.owner===META.name&&job.remote?.canvasId===board&&job.remote.remote_task_id&&job.created_at)orders[job.remote.remote_task_id]=job.created_at;
     }
-    const next=arrangeContent(before.content,orders);
-    if(next.content===JSON.stringify(JSON.parse(before.content||'{}')))return {saved:true,changed:false,element_count:next.element_ids.length,layout:LAYOUT,canvas_url:before.canvasUrl};
-    return {...await saveContent(cfg,board,before,next),changed:true,element_count:next.element_ids.length,layout:LAYOUT};
+    const next=arrangeContent(before.content,orders,placement);
+    if(next.content===JSON.stringify(JSON.parse(before.content||'{}')))return {saved:true,changed:false,element_count:next.element_ids.length,layout:next.layout,canvas_url:before.canvasUrl};
+    return {...await saveContent(cfg,board,before,next),changed:true,element_count:next.element_ids.length,layout:next.layout};
   });
 }
 

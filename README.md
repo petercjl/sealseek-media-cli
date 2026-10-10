@@ -76,27 +76,51 @@ Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for ima
 
 Pass ordinary reference images with `--reference` (or supported first/last-frame inputs). Before submitting a Seedance video, the CLI automatically uploads local images, invokes Infinite Canvas person/multiple-face detection and asset review, waits for approval, and uses the approved material URI. No extra command or user parameter is required. Unchanged references reuse privately cached, provider-verified materials. Review failure stops generation and is shown in task diagnostics. Dry-run does not upload or review.
 
-## Conversation canvases
+## Canvas operations and placement
 
-Images and videos archived by the CLI include hidden generation details for Infinite Canvas's existing “查看生成详情” control: prompt, model, ratio/resolution, available parameters and reference media. These do not add text objects to the canvas. Use `task sync TASK_ID --json` to enrich existing CLI elements without generating again. Saved settings describe the request; output dimensions and duration should still be checked through artifact inspection.
+The CLI exposes reusable operations. Application Skills choose assets, prompts, canvas identity, project state and layout. In standalone conversations, the suggested workflow is one stable `--session CONVERSATION_ID`, reuse its canvas, and create/bind a new one on request. `--canvas ID` overrides session/default selection. Without either, the CLI uses the host-provided session (`SEALSEEK_MEDIA_SESSION_ID` then `CODEX_THREAD_ID`) or the account default. Bindings are account-scoped. Dry-run creates nothing; unresolved creation or missing bound canvases stop for recovery.
 
-Use a stable `--session CONVERSATION_ID` for every generation/edit in one Agent conversation. The first real submission creates and binds one canvas; subsequent requests reuse it. Dry-run creates no canvas. The Agent obtains its native conversation ID or creates one identifier once and retains it throughout the conversation. Starting a new canvas requires an explicit user request.
-
-```sh
-sealseek-media image generate --session CONVERSATION_ID --prompt "A ceramic cup" --dry-run --json
-sealseek-media image generate --session CONVERSATION_ID --prompt "A ceramic cup" --submit --json
-sealseek-media video generate --session CONVERSATION_ID --prompt "A slow camera move" --duration 5 --submit --json
+```bash
+sealseek-media canvas create --title "Project assets" --submit --json
+sealseek-media canvas use CANVAS_ID --session CONVERSATION_ID --yes --json
+sealseek-media canvas get CANVAS_ID --json
+sealseek-media canvas add CANVAS_ID --media ./media.json --json
+sealseek-media canvas add CANVAS_ID --media ./media.json --submit --json
+sealseek-media canvas arrange CANVAS_ID --placement ./grid.json --submit --json
 ```
 
-To start another canvas in the same conversation:
+Generation and image editing accept `--archive canvas|none` (default `canvas`) and `--placement JSON_FILE`. `none` skips visible element archival; the generation service still requires a canvas ID and keeps its task/history there. It does not mean no service-side canvas activity. `task sync` explicitly archives an existing generated result without regeneration. Canvas save failure preserves outputs and reports `canvas_sync_error`.
 
-```sh
-sealseek-media canvas create --title "New project" --submit --json
-sealseek-media canvas use RETURNED_CANVAS_ID --session CONVERSATION_ID --yes --json
+Placement JSON uses canvas units:
+
+| Mode | Inputs | Effect |
+|---|---|---|
+| `append` (default) | `columns` default 5, `gap` default 48, `width` default 320, optional `height` | Add new elements in completion/returned-output order; preserve all existing positions. Wrap below occupied bounds when necessary. |
+| `explicit` | `positions`: one `{x,y,width?,height?}` per output; optional fallback `width/height` | Use caller positions exactly, including negative coordinates. Caller owns intentional overlaps and layout quality. |
+| `grid` | `columns`, `gap`, new-element `width/height` | Explicitly reflow all CLI-owned media by submission order when known. Other elements keep their positions; rows begin below them. |
+
+Widths/heights are positive and at most 100000; columns 1–100; gap 0–10000. With no height, derive it from the requested ratio (default 1:1), not independently measured media dimensions. Existing media sizes are preserved by grid arrangement; width/height apply to new elements. `canvas arrange` always performs grid arrangement; its placement file may specify columns/gap. It does not resize existing elements.
+
+Example `placement.json` for two image outputs:
+
+```json
+{"mode":"explicit","positions":[{"x":0,"y":0,"width":600,"height":800},{"x":650,"y":0,"width":600,"height":800}]}
 ```
 
-`--canvas ID` explicitly targets an existing canvas. Without `--session` or `--canvas`, requests reuse the account default canvas. Bindings are scoped by service account, so switching accounts cannot reuse another account’s canvas. A missing bound canvas stops with an error; automatic replacement is not performed.
+Example `grid.json`:
 
-`canvas list`, `canvas get ID`, and `canvas tasks ID` inspect boards and generation history. Results contain `canvas_id`, `canvas_url`, and `canvas_saved`. Successful media are appended as visible elements in submission order, left to right, with at most five image/video elements per row. Existing elements and settings are preserved; each save has a private content backup. Avoid simultaneous manual editing while the CLI saves: the service offers no atomic revision check. If `canvas_sync_error` is present, use `task sync TASK_ID --json` to archive the saved outputs again without generating or charging again. Repeated archival preserves existing elements, including deleted ones. Unknown canvas-creation outcomes require inspecting `canvas list` and explicitly binding the existing canvas with `canvas use`.
+```json
+{"mode":"grid","columns":5,"gap":48}
+```
 
-Canvas layout uses 48 canvas units between elements and rows, top-aligns each row, and starts the next row below the tallest element. Image and video each count as one element. Submission time determines order, including parallel requests; outputs in a batch keep their returned order. Each archival reflows CLI media. Other user elements retain their positions; CLI rows are placed below them. To organize existing CLI media without generation, use `sealseek-media canvas arrange ID --submit --json`. Legacy records recover submission order from local tasks when available; otherwise existing element order is preserved.
+Example `media.json` for an existing asset:
+
+```json
+{"id":"product-main-01","kind":"image","urls":["https://example.com/main.jpg"],"placement":{"mode":"explicit","positions":[{"x":0,"y":0,"width":600,"height":800}]},"generationParams":{"prompt":"Caller-provided prompt","model":"gpt-image-2.5-sunburst"}}
+```
+
+`canvas add` accepts `id` (stable operation key, 1–200 characters), `kind` (`image`/`video`), 1–100 HTTP(S) `urls`, optional `ratio`, `placement`, and `generationParams`. Use a distinct id per logical import. Repeating an id/output index does not duplicate or restore deleted elements; different URLs under that key produce `IDEMPOTENCY_CONFLICT`. Replaying explicit placement does not move existing elements. Inspect the existing canvas before choosing a new import id. Metadata uses the supported generation-detail fields; unknown/private fields are discarded. Local assets can first use `image upload FILE --submit --json` or `video upload FILE --submit --json`, then pass the returned URL. Video thumbnails use the Infinite Canvas OSS snapshot convention; arbitrary external video hosts may need media uploaded to SealSeek before import.
+
+For strict left-to-right submission order with concurrent tasks, reserve coordinates in the application and pass explicit positions, or invoke grid arrangement after all tasks complete. Default append prioritizes preservation of existing layout over retrospective reordering. Sequential standalone generation naturally retains generation order.
+
+Canvas writes preserve other content/settings, create private backups and verify saved positions and details. The service exposes no atomic revision check; avoid concurrent manual editing while saving. CLI-local locks serialize writes from the same state directory. Cross-device writers still require coordination. `canvas list`, `canvas get` and `canvas tasks` provide inspection; unknown outcomes require checking saved state before another mutation.

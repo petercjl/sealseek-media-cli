@@ -126,5 +126,104 @@
         "LOGIN_CONTRACT_FAILED"
       ]
     }
-  ]
+  ],
+  "canvas_contract": {
+    "version": 1,
+    "ownership": {
+      "caller": [
+        "asset-selection",
+        "prompts",
+        "workflow",
+        "project-state",
+        "layout-decisions",
+        "business-acceptance"
+      ],
+      "cli": [
+        "explicit-operations",
+        "authentication",
+        "validation",
+        "review",
+        "task-recovery",
+        "idempotency",
+        "verified-writes"
+      ]
+    },
+    "generation_options": {
+      "archive": {
+        "enum": [
+          "canvas",
+          "none"
+        ],
+        "default": "canvas",
+        "none_effect": "Skip visible element archival; provider canvas/task history still required."
+      },
+      "placement": {
+        "flag": "--placement JSON_FILE",
+        "modes": [
+          "append",
+          "grid",
+          "explicit"
+        ],
+        "default": {
+          "mode": "append",
+          "columns": 5,
+          "gap": 48,
+          "width": 320
+        },
+        "explicit_positions": "One x/y and optional width/height object per requested output; canvas units.",
+        "append_order": "archival-completion then returned-output order",
+        "grid_effect": "Explicitly reflow all CLI-owned elements; preserve unrelated positions.",
+        "existing_positions_preserved": [
+          "append",
+          "explicit"
+        ]
+      }
+    },
+    "operations": {
+      "create": "canvas create --title TEXT --submit",
+      "bind": "canvas use ID --session KEY --yes",
+      "inspect": "canvas get ID",
+      "import": "canvas add ID --media JSON_FILE [--submit]",
+      "arrange": "canvas arrange ID [--placement JSON_FILE] --submit",
+      "upload": [
+        "image upload FILE --submit",
+        "video upload FILE --submit"
+      ]
+    },
+    "import_fields": {
+      "required": [
+        "id",
+        "kind",
+        "urls"
+      ],
+      "optional": [
+        "ratio",
+        "placement",
+        "generationParams"
+      ],
+      "idempotency": "Stable id/output index; changed URL returns IDEMPOTENCY_CONFLICT."
+    },
+    "placement_limits": {
+      "columns": [
+        1,
+        100
+      ],
+      "gap": [
+        0,
+        10000
+      ],
+      "dimensions": [
+        0,
+        100000
+      ],
+      "coordinate_absolute_max": 1000000000
+    },
+    "suggested_standalone_workflow": "Reuse conversation canvas and append; caller may override.",
+    "errors": [
+      "INVALID_INPUT",
+      "IDEMPOTENCY_CONFLICT",
+      "CANVAS_CHANGED",
+      "CANVAS_SAVE_UNCERTAIN"
+    ]
+  }
 }

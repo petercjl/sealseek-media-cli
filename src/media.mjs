@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { requireValue, MediaError, secureUrl, hash } from './core.mjs';
 import { toolFor, validateArguments, call,request,API,authenticatedFetch,generationPayload,validateNativeInput } from './canvas.mjs';
+import {archiveOptions} from './placement.mjs';
 import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
 import {assetUri,reviewReference,REVIEW_POLICY} from './asset-review.mjs';
@@ -76,7 +77,9 @@ export async function prepare(kind, options, tools, catalog) {
   options={...options,session:options.session||process.env.SEALSEEK_MEDIA_SESSION_ID||process.env.CODEX_THREAD_ID};
   requireValue(!options.session||typeof options.session==='string'&&options.session.length<=200,'INVALID_INPUT','Session ID must be 1-200 characters.');
   if(options.canvas)requireValue(/^[A-Za-z0-9_-]{1,100}$/.test(options.canvas),'INVALID_INPUT','Provide a valid canvas ID.');
-  return { kind,canvas_id:options.canvas||null,canvas_session:options.session||null, transport:'infinite-canvas',tool: tool.name, args, refs, first, last,videoRefs,audioRef,model_contract:contract,...(kind==='video'?{reference_review:REVIEW_POLICY}:{}), output: options.output ? path.resolve(options.output) : null };
+  const archival=await archiveOptions(options);
+  requireValue(archival.placement.mode!=='explicit'||archival.placement.positions.length===(args.num||1),'INVALID_INPUT','Provide one placement position per requested output.');
+  return { kind,...archival,canvas_id:options.canvas||null,canvas_session:options.session||null, transport:'infinite-canvas',tool: tool.name, args, refs, first, last,videoRefs,audioRef,model_contract:contract,...(kind==='video'?{reference_review:REVIEW_POLICY}:{}), output: options.output ? path.resolve(options.output) : null };
 }
 export async function upload(connection, ref) {
   if (ref.url) return ref.url;

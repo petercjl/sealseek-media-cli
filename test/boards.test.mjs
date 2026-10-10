@@ -50,7 +50,7 @@ test('conversation bindings reuse one board, isolate accounts, allow explicit sw
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));if(old===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=old;await fs.rm(dir,{recursive:true});}
 });
 test('archival preserves canvas data, deleted media and uses non-overlapping coordinates',()=>{
- const media={id:'task',kind:'image',urls:['https://example.com/x.png'],ratio:'3:4',placement:{x:0,y:0}};
+ const media={id:'task',kind:'image',urls:['https://example.com/x.png'],ratio:'3:4'};
  const initial={elements:[{id:'user',x:0,y:0,width:100,height:100}],imageUrlMap:{old:'kept'},appState:{zoom:2},custom:'keep'};
  const next=appendMedia(JSON.stringify(initial),media),v=JSON.parse(next.content);assert.deepEqual(v.appState,initial.appState);assert.equal(v.custom,'keep');assert.equal(v.imageUrlMap.old,'kept');assert(v.elements[1].y>=148);assert.equal(v.elements[1].height,427);
  v.elements[1].isDeleted=true;assert.equal(appendMedia(JSON.stringify(v),media).added.length,0);
@@ -64,7 +64,7 @@ test('mixed media wrap after five, align tops, and use the tallest item for row 
 });
 test('completion order cannot reorder submission order, and a batch keeps its internal order',()=>{
  let content=appendMedia('{}',{id:'later',kind:'video',urls:['https://example.com/v.mp4'],order:'2026-10-09T02:00:00Z'}).content;
- content=appendMedia(content,{id:'earlier',kind:'image',urls:['https://example.com/1.png','https://example.com/2.png'],order:'2026-10-09T01:00:00Z'}).content;
+ content=appendMedia(content,{id:'earlier',kind:'image',urls:['https://example.com/1.png','https://example.com/2.png'],order:'2026-10-09T01:00:00Z',placement:{mode:'grid'}}).content;
  const e=JSON.parse(content).elements;assert.equal(e[1].x,0);assert.equal(e[2].x,368);assert.equal(e[0].x,736);noOverlap(e);
 });
 
