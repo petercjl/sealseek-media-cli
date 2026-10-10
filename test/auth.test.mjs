@@ -37,7 +37,7 @@ test('credential expiry, private backup/removal, managed profile and unrelated c
 test('HTTP 200 business 401 is an authentication rejection',async()=>{
  const server=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code:401,message:'fixture expired'}));});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
- try{await assert.rejects(authenticatedFetch('http://127.0.0.1:'+server.address().port,{}),{code:'AUTH_REJECTED'});}finally{await new Promise(r=>server.close(r));}
+ try{await assert.rejects(authenticatedFetch('http://127.0.0.1:'+server.address().port,{}),{code:'AUTH_REJECTED'});}finally{server.closeAllConnections();await new Promise(r=>server.close(r));}
 });
 
 test('official QR contract: pending, verified token storage, private page and terminal success',async()=>{
