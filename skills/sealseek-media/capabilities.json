@@ -224,6 +224,38 @@
       "IDEMPOTENCY_CONFLICT",
       "CANVAS_CHANGED",
       "CANVAS_SAVE_UNCERTAIN"
-    ]
+    ],
+    "features": [
+      "frame-batch",
+      "explicit-placement",
+      "source-metadata",
+      "video-poster",
+      "media-inspect",
+      "element-placement",
+      "text-batch"
+    ],
+    "batch": {
+      "command": "canvas batch ID --file JSON_FILE [--submit]",
+      "schema": {
+        "frames": [
+          "id",
+          "name",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "media": "canvas add media entries with frameId and explicit placement",
+        "texts": "optional array of id,text,x,y,width,height,fontSize"
+      },
+      "coordinates": "absolute canvas units",
+      "idempotency": "stable frame/media IDs; conflicting bounds or URLs are rejected"
+    },
+    "element_placement": {
+      "command": "canvas place ID --file JSON_FILE [--submit]",
+      "input": "array of id,x,y,width,height and optional expected bounds",
+      "preserves": "element identity, Frame membership, media URL, metadata",
+      "recovery": "query same canvas; repeat same placements; previous bounds checked unless already applied"
+    }
   }
 }

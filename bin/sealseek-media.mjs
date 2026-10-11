@@ -7,7 +7,7 @@ import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src
 import { connect, desktopConfig, call,request as canvasRequest,NATIVE_CONTRACT,validateNativeInput } from '../src/canvas.mjs';
 import { prepare, reference, upload, download } from '../src/media.mjs';
 import { submit, getJob, summary, waitJob, worker,resumeJob,syncJob } from '../src/jobs.mjs';
-import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases,archiveMedia,appendMedia} from '../src/boards.mjs';
+import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases,archiveMedia,appendMedia,applyCanvasBatch,batchCanvas,placeCanvas} from '../src/boards.mjs';
 import {archiveOptions,validatePlacement} from '../src/placement.mjs';
 import { SOURCE, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
@@ -17,6 +17,8 @@ import { videoGuide } from '../src/video-contract.mjs';
 import { diagnose,inspectTask } from '../src/diagnostics.mjs';
 import { CATALOG,liveCatalog,modelContract,estimate } from '../src/models.mjs';
 import { verifyCredentials } from '../src/service.mjs';
+
+import {inspectMediaUrl} from '../src/media-inspect.mjs';
 
 const HELP=`sealseek-media ${META.version}
 SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
@@ -56,6 +58,9 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   task inspect ID --json               (saved file hashes, dimensions and duration)
   task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
   task download ID --output DIR --json  (uses stored URLs, never regenerates)
+  media inspect --url URL [--kind image|video] --json
+  canvas place ID --file JSON_FILE [--submit] --json (explicit element bounds)
+  canvas batch ID --file JSON_FILE [--submit] --json (explicit frames, media and optional texts)
   canvas create --title TEXT --submit --json
   canvas list [--keyword TEXT] [--page N] [--limit N] --json
   canvas get ID --json
@@ -104,14 +109,22 @@ async function main(argv) {
       return out({...v,verified:false});
     }
   }
+  if(command==='media'&&action==='inspect'){const {options}=parse(rest,[...common,'url','kind']);requireValue(options.url,'INVALID_INPUT','Provide --url.');return out({ok:true,...await inspectMediaUrl(options.url,options.kind||'image')});}
   if(command==='canvas'){
-    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit','media','placement']);
-    requireValue(['create','list','get','use','tasks','arrange','delete','add'].includes(action),'UNKNOWN_COMMAND','Use canvas create, list, get, use or tasks.');
+    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit','media','placement','file']);
+    requireValue(['create','list','get','use','tasks','arrange','delete','add','batch','place'].includes(action),'UNKNOWN_COMMAND','Use canvas create, list, get, use or tasks.');
+    if(action==='place'){requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas place ID --file JSON_FILE [--submit].');const placements=JSON.parse(await fs.readFile(options.file,'utf8'));return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await placeCanvas(c.cfg,args[0],placements,!!options.submit)}));}
+    if(action==='batch'){
+      requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas batch ID --file JSON_FILE [--submit].');
+      const batch=JSON.parse(await fs.readFile(options.file,'utf8'));applyCanvasBatch('{}',batch);
+      if(!options.submit)return out({ok:true,dry_run:true,canvas_id:canvasId(args[0]),frames:batch.frames.length,media:batch.media.length,texts:batch.texts?.length||0});
+      return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await batchCanvas(c.cfg,args[0],batch)}));
+    }
     if(action==='add'){
       requireValue(args.length===1&&options.media,'INVALID_INPUT','Use canvas add ID --media JSON_FILE [--submit].');
       requireValue(!options.placement,'INVALID_INPUT','Embed placement in the media JSON for canvas add.');
       let media;try{media=JSON.parse(await fs.readFile(options.media,'utf8'));}catch{throw new MediaError('INVALID_INPUT','Media must be a readable JSON object file.');}
-      requireValue(media&&typeof media==='object'&&!Array.isArray(media)&&Object.keys(media).every(k=>['id','kind','urls','ratio','placement','generationParams'].includes(k)),'INVALID_INPUT','Unknown media field.');
+      requireValue(media&&typeof media==='object'&&!Array.isArray(media)&&Object.keys(media).every(k=>['id','kind','urls','ratio','placement','generationParams','frameId','posterUrl','sourceMetadata'].includes(k)),'INVALID_INPUT','Unknown media field.');
       appendMedia('{}',media); // Validate every input before mutation or upload.
       if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,canvas_id:canvasId(args[0]),media});
       return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await archiveMedia(c.cfg,args[0],media)}));

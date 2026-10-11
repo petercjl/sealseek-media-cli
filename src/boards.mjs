@@ -65,6 +65,7 @@ export function arrangeContent(content,orders={},options={}){
   const v=JSON.parse(content||'{}');requireValue(v&&typeof v==='object'&&!Array.isArray(v),'OUTPUT_CONTRACT_FAILED','Canvas content must be an object.');
   requireValue(!v.elements||Array.isArray(v.elements),'OUTPUT_CONTRACT_FAILED','Canvas elements must be an array.');v.elements||=[];
   const media=v.elements.filter(e=>!e.isDeleted&&ownedMedia(e));
+  requireValue(media.every(e=>!e.frameId),'FEATURE_UNSUPPORTED','Framed media requires caller-owned placement; grid reflow cannot preserve frame membership.');
   for(const e of media){
     const order=orders[e.customData.cliTaskId];
     if(order)e.customData.cliGenerationOrder=order;
@@ -106,8 +107,11 @@ export function generationParams(args={},task={}){
   for(const [key,fallback] of [['referenceAudio',args.reference_audio],['firstFrameImage',args.first_frame_image],['lastFrameImage',args.last_frame_image]]){const value=p[key]??fallback;if(mediaUrl(value))out[key]=value;}
   return out;
 }
-export function appendMedia(content,{id,kind,urls,ratio='1:1',order,generationParams:params,placement={}}){
+export function appendMedia(content,{id,kind,urls,ratio='1:1',order,generationParams:params,placement={},frameId=null,posterUrl,sourceMetadata}){
   const layout=validatePlacement(placement);
+  if(frameId!==null)requireValue(typeof frameId==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(frameId),'INVALID_INPUT','Invalid frame ID.');
+  if(posterUrl)posterUrl=secureUrl(posterUrl).href;
+  if(sourceMetadata)requireValue(typeof sourceMetadata==='object'&&!Array.isArray(sourceMetadata)&&Object.keys(sourceMetadata).every(k=>['sourceUrl','productId','shopId','category','assetId'].includes(k))&&Object.values(sourceMetadata).every(v=>typeof v==='string'&&v.length<=2000),'INVALID_INPUT','Invalid source metadata.');
   if(params){requireValue(typeof params==='object'&&!Array.isArray(params),'INVALID_INPUT','Generation details must be an object.');params=generationParams({}, {...params,params});}
   requireValue(typeof id==='string'&&id.length>0&&id.length<=200&&['image','video'].includes(kind)&&Array.isArray(urls)&&urls.length>0&&urls.length<=100,'INVALID_INPUT','Provide an id, image/video kind and 1-100 URLs.');
   urls=urls.map(url=>secureUrl(url).href);
@@ -120,11 +124,11 @@ export function appendMedia(content,{id,kind,urls,ratio='1:1',order,generationPa
   const added=[];
   for(const [i,url] of urls.entries()){
     const elementId='cli-'+hash({id,kind,i}).slice(0,24),existing=v.elements.find(e=>e.id===elementId);
-    if(existing){requireValue((kind==='video'?existing.customData?.videoUrl:existing.customData?.fileUrl)===url,'IDEMPOTENCY_CONFLICT','This media id is already associated with different content.');if(!existing.isDeleted&&params){const previous=existing.customData?.generationParams;const merged={...previous,...params};if(JSON.stringify(previous)!==JSON.stringify(merged)){existing.customData={...existing.customData,generationParams:merged};existing.version=(existing.version||1)+1;existing.updated=Date.now();}}continue;}
-    const fileId='file-'+elementId,thumbnail=kind==='video'?url+(url.includes('?')?'&':'?')+'x-oss-process=video/snapshot,t_0,w_1920,f_jpg,m_fast':url;
+    if(existing){if(posterUrl)requireValue(existing.customData?.fileUrl===posterUrl,'IDEMPOTENCY_CONFLICT','Existing video has a different poster.');if(sourceMetadata)requireValue(JSON.stringify(existing.customData?.sourceMetadata)===JSON.stringify(sourceMetadata),'IDEMPOTENCY_CONFLICT','Existing media has different source metadata.');if(layout.mode==='explicit')requireValue(['x','y','width','height'].every(k=>layout.positions[i][k]===undefined||existing[k]===layout.positions[i][k]),'IDEMPOTENCY_CONFLICT','Existing media has different placement.');requireValue(existing.frameId===frameId,'IDEMPOTENCY_CONFLICT','Existing media has a different frame.');requireValue((kind==='video'?existing.customData?.videoUrl:existing.customData?.fileUrl)===url,'IDEMPOTENCY_CONFLICT','This media id is already associated with different content.');if(!existing.isDeleted&&params){const previous=existing.customData?.generationParams;const merged={...previous,...params};if(JSON.stringify(previous)!==JSON.stringify(merged)){existing.customData={...existing.customData,generationParams:merged};existing.version=(existing.version||1)+1;existing.updated=Date.now();}}continue;}
+    const fileId='file-'+elementId,thumbnail=kind==='video'?(posterUrl||url+(url.includes('?')?'&':'?')+'x-oss-process=video/snapshot,t_0,w_1920,f_jpg,m_fast'):url;
     const pos=layout.mode==='explicit'?layout.positions[i]:{},width=pos.width??layout.width,height=pos.height??layout.height??Math.max(1,Math.round(width/aspect));
     requireValue(Number.isFinite(height)&&height>0&&height<=100000,'INVALID_INPUT','Derived height exceeds placement limits; provide explicit dimensions.');
-    const element={type:'image',id:elementId,x:pos.x??0,y:pos.y??0,width,height,fileId,scale:[1,1],isDeleted:false,locked:false,opacity:100,angle:0,strokeColor:'transparent',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:0,strokeStyle:'solid',roughness:0,roundness:null,seed:1,version:1,versionNonce:1,link:null,groupIds:[],frameId:null,boundElements:[],updated:Date.now(),status:'saved',strokeSharpness:'sharp',customData:{fileUrl:thumbnail,fileMimeType:kind==='video'?'image/jpeg':({'.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif'}[path.extname(new URL(url).pathname).toLowerCase()]||'image/png'),...(kind==='video'?{isVideoThumbnail:true,videoUrl:url,displayName:'CLI video'}:{}),cliTaskId:id,cliOutputIndex:i,...(order?{cliGenerationOrder:order}:{})}};
+    const element={type:'image',id:elementId,x:pos.x??0,y:pos.y??0,width,height,fileId,scale:[1,1],isDeleted:false,locked:false,opacity:100,angle:0,strokeColor:'transparent',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:0,strokeStyle:'solid',roughness:0,roundness:null,seed:1,version:1,versionNonce:1,link:null,groupIds:[],frameId,boundElements:[],updated:Date.now(),status:'saved',strokeSharpness:'sharp',customData:{fileUrl:thumbnail,fileMimeType:kind==='video'?'image/jpeg':({'.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif'}[path.extname(new URL(url).pathname).toLowerCase()]||'image/png'),...(kind==='video'?{isVideoThumbnail:true,videoUrl:url,displayName:'CLI video'}:{}),cliTaskId:id,cliOutputIndex:i,...(sourceMetadata?{sourceMetadata:structuredClone(sourceMetadata)}:{}),...(order?{cliGenerationOrder:order}:{})}};
     if(params)element.customData.generationParams=structuredClone(params);
     if(layout.mode==='append'){
       const active=v.elements.filter(e=>!e.isDeleted),media=active.filter(ownedMedia),last=media.at(-1);
@@ -149,7 +153,7 @@ async function saveContent(cfg,board,before,next){
   const fresh=await getCanvas(cfg,board);requireValue((fresh.content||'{}')===(before.content||'{}'),'CANVAS_CHANGED','Canvas changed during archival. Retry after manual editing ends.');
   await request(cfg,'/canvas/save',{method:'POST',data:{id:board,content:next.content,triggerType:'auto',...((before.thumbnail||JSON.parse(next.content).elements.find(e=>!e.isDeleted&&ownedMedia(e))?.customData?.fileUrl)?{thumbnail:before.thumbnail||JSON.parse(next.content).elements.find(e=>!e.isDeleted&&ownedMedia(e)).customData.fileUrl}:{})},submission:true});
   const after=await getCanvas(cfg,board),elements=JSON.parse(after.content||'{}').elements||[],expected=JSON.parse(next.content).elements||[];
-  requireValue(expected.every(e=>{const found=elements.find(a=>a.id===e.id);return found&&found.x===e.x&&found.y===e.y&&found.width===e.width&&found.height===e.height&&found.isDeleted===e.isDeleted&&(!e.customData?.generationParams||JSON.stringify(found.customData?.generationParams)===JSON.stringify(e.customData.generationParams));}),'CANVAS_SAVE_UNCERTAIN','Canvas positions and generation details could not be verified. Inspect the canvas before retrying; do not regenerate.');
+  requireValue(expected.every(e=>{const found=elements.find(a=>a.id===e.id);return found&&found.x===e.x&&found.y===e.y&&found.width===e.width&&found.height===e.height&&found.isDeleted===e.isDeleted&&found.type===e.type&&found.frameId===e.frameId&&found.name===e.name&&['text','originalText','fontSize','fontFamily','textAlign','lineHeight'].every(k=>found[k]===e[k])&&JSON.stringify(found.customData)===JSON.stringify(e.customData)&&(!e.customData?.generationParams||JSON.stringify(found.customData?.generationParams)===JSON.stringify(e.customData.generationParams));}),'CANVAS_SAVE_UNCERTAIN','Canvas positions and generation details could not be verified. Inspect the canvas before retrying; do not regenerate.');
   return {saved:true,canvas_url:after.canvasUrl,backup};
 }
 export async function archiveMedia(cfg,board,media){
@@ -171,6 +175,70 @@ export async function arrangeCanvas(cfg,board,placement={}){
     const next=arrangeContent(before.content,orders,placement);
     if(next.content===JSON.stringify(JSON.parse(before.content||'{}')))return {saved:true,changed:false,element_count:next.element_ids.length,layout:next.layout,canvas_url:before.canvasUrl};
     return {...await saveContent(cfg,board,before,next),changed:true,element_count:next.element_ids.length,layout:next.layout};
+  });
+}
+
+export function applyCanvasBatch(content,batch){
+  requireValue(batch&&typeof batch==='object'&&Object.keys(batch).every(k=>['frames','media','texts'].includes(k))&&Array.isArray(batch.frames)&&Array.isArray(batch.media)&&batch.frames.length<=100&&batch.media.length<=500&&(batch.texts===undefined||(Array.isArray(batch.texts)&&batch.texts.length<=100)),'INVALID_INPUT','Batch requires frames (0-100) and media (0-500).');
+  const v=JSON.parse(content||'{}');v.elements||=[];let addedFrames=0;
+  const ids=new Set();
+  for(const f of batch.frames){
+    requireValue(f&&Object.keys(f).every(k=>['id','name','x','y','width','height'].includes(k))&&/^[A-Za-z0-9_-]{1,100}$/.test(f.id)&&!ids.has(f.id)&&typeof f.name==='string'&&f.name.trim()&&f.name.length<=200,'INVALID_INPUT','Invalid or duplicate frame.');ids.add(f.id);
+    validatePlacement({mode:'explicit',positions:[{x:f.x,y:f.y,width:f.width,height:f.height}]});
+    const e={type:'frame',...f,angle:0,strokeColor:'#bbb',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:1,strokeStyle:'solid',roughness:0,opacity:100,groupIds:[],frameId:null,index:null,roundness:null,seed:1,version:1,versionNonce:1,isDeleted:false,boundElements:null,updated:Date.now(),link:null,locked:false};
+    const old=v.elements.find(e=>e.id===f.id);
+    if(old)requireValue(!old.isDeleted&&old.type==='frame'&&['name','x','y','width','height'].every(k=>old[k]===f[k]),'IDEMPOTENCY_CONFLICT','Frame ID already has different bounds or content.');
+    else{v.elements.push(e);addedFrames++;}
+  }
+  let addedTexts=0;
+  for(const t of batch.texts||[]){
+    requireValue(t&&Object.keys(t).every(k=>['id','text','x','y','width','height','fontSize'].includes(k))&&/^[A-Za-z0-9_-]{1,100}$/.test(t.id)&&!ids.has(t.id)&&typeof t.text==='string'&&t.text.trim()&&t.text.length<=1000&&Number.isFinite(t.fontSize)&&t.fontSize>=8&&t.fontSize<=200,'INVALID_INPUT','Invalid or duplicate text element.');ids.add(t.id);
+    requireValue(['x','y','width','height'].every(k=>Number.isFinite(t[k])),'INVALID_INPUT','Text bounds must be explicit.');
+    validatePlacement({mode:'explicit',positions:[{x:t.x,y:t.y,width:t.width,height:t.height}]});
+    const e={type:'text',...t,originalText:t.text,fontFamily:2,textAlign:'left',verticalAlign:'top',lineHeight:1.25,autoResize:false,containerId:null,angle:0,strokeColor:'#222222',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:1,strokeStyle:'solid',roughness:0,opacity:100,groupIds:[],frameId:null,index:null,roundness:null,seed:1,version:1,versionNonce:1,isDeleted:false,boundElements:null,updated:Date.now(),link:null,locked:false};
+    const old=v.elements.find(e=>e.id===t.id);
+    if(old)requireValue(!old.isDeleted&&old.type==='text'&&['text','x','y','width','height','fontSize'].every(k=>old[k]===t[k]),'IDEMPOTENCY_CONFLICT','Text ID already has different bounds or content.');
+    else{v.elements.push(e);addedTexts++;}
+  }
+  let next=JSON.stringify(v),added=0;
+  for(const m of batch.media){
+    requireValue(m&&Object.keys(m).every(k=>['id','kind','urls','ratio','placement','generationParams','frameId','posterUrl','sourceMetadata'].includes(k)),'INVALID_INPUT','Unknown media field.');
+    const frame=m.frameId?v.elements.find(e=>e.id===m.frameId&&e.type==='frame'&&!e.isDeleted):null;
+    requireValue(!m.frameId||frame,'INVALID_INPUT','Media frame does not exist.');
+    requireValue(m.placement?.mode==='explicit','INVALID_INPUT','Batch media requires explicit placement.');
+    if(frame)for(const p of m.placement.positions||[])requireValue(p.x>=frame.x&&p.y>=frame.y&&p.x+p.width<=frame.x+frame.width&&p.y+p.height<=frame.y+frame.height,'INVALID_INPUT','Media bounds exceed its frame.');
+    const out=appendMedia(next,m);next=out.content;added+=out.added.length;
+  }
+  return {content:next,added_frames:addedFrames,added_media:added,added_texts:addedTexts};
+}
+export async function batchCanvas(cfg,board,batch){
+  canvasId(board);return locked('save-'+hash({origin:cfg.url.origin,board}),async()=>{
+    const before=await getCanvas(cfg,board),next=applyCanvasBatch(before.content,batch);
+    if(!next.added_frames&&!next.added_media&&!next.added_texts)return {saved:true,changed:false,canvas_url:before.canvasUrl,added_frames:0,added_media:0,added_texts:0};
+    return {...await saveContent(cfg,board,before,next),added_frames:next.added_frames,added_media:next.added_media,added_texts:next.added_texts};
+  });
+}
+
+export function placeElements(content,placements){
+  requireValue(Array.isArray(placements)&&placements.length>0&&placements.length<=1000,'INVALID_INPUT','Provide 1-1000 element placements.');
+  const v=JSON.parse(content||'{}'),ids=new Set();let changed=0;
+  for(const p of placements){
+    requireValue(p&&Object.keys(p).every(k=>['id','x','y','width','height','expected'].includes(k))&&typeof p.id==='string'&&!ids.has(p.id),'INVALID_INPUT','Invalid or duplicate element placement.');ids.add(p.id);
+    const position={x:p.x,y:p.y,width:p.width,height:p.height};validatePlacement({mode:'explicit',positions:[position]});
+    const e=v.elements?.find(e=>e.id===p.id&&!e.isDeleted);requireValue(e,'ELEMENT_NOT_FOUND','Selected element is unavailable.');
+    const same=['x','y','width','height'].every(k=>e[k]===p[k]);if(same)continue;
+    if(p.expected)requireValue(['x','y','width','height'].every(k=>e[k]===p.expected[k]),'CANVAS_CHANGED','Selected element changed since planning.');
+    Object.assign(e,position,{version:(e.version||1)+1,versionNonce:crypto.randomInt(1,2147483647),updated:Date.now()});changed++;
+  }
+  for(const e of v.elements||[]){if(e.isDeleted||!e.frameId)continue;const f=v.elements.find(f=>f.id===e.frameId&&!f.isDeleted&&f.type==='frame');requireValue(f&&e.x>=f.x-1e-6&&e.y>=f.y-1e-6&&e.x+e.width<=f.x+f.width+1e-6&&e.y+e.height<=f.y+f.height+1e-6,'INVALID_INPUT','Placement leaves a member outside its Frame.');}
+  return {content:JSON.stringify(v),changed};
+}
+export async function placeCanvas(cfg,board,placements,submit=false){
+  canvasId(board);return locked('save-'+hash({origin:cfg.url.origin,board}),async()=>{
+    const before=await getCanvas(cfg,board),next=placeElements(before.content,placements);
+    if(!submit)return {dry_run:true,changed_elements:next.changed};
+    if(!next.changed)return {saved:true,changed_elements:0,canvas_url:before.canvasUrl};
+    return {...await saveContent(cfg,board,before,next),changed_elements:next.changed};
   });
 }
 

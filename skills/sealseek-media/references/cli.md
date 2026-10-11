@@ -155,3 +155,19 @@ Archived image/video elements include `customData.generationParams`, consumed by
 ## Canvas deletion
 
 `canvas delete --title "EXACT_TITLE" --json` previews all exact-title matches across pages. `canvas delete ID --json` previews a single canvas. After explicit human authorization, add `--submit --yes` to delete. Complete private backups of each canvas’s content and current task history are verified before the first deletion. The result returns deleted IDs and the backup directory. Backups preserve content; they do not guarantee restoration of original canvas IDs, sharing permissions, or backend generation tasks. An unknown deletion response stops immediately and is never replayed automatically.
+
+
+## Native Frames, explicit batches and existing-media metadata
+
+`media inspect --url HTTPS_URL --kind image|video --json` returns actual width/height; video also returns duration when available and requires ffprobe. External media is fetched without SealSeek credential headers. Image inspection supports up to 16 MiB.
+
+`canvas batch ID --file FILE.json --json` validates a complete batch without saving; add `--submit` for an authorized write. Shape: `{ "frames": [{ "id":"frame-a", "name":"Name", "x":0, "y":0, "width":800, "height":900 }], "media": [{ "id":"asset-a", "kind":"image", "urls":["https://example.com/a.png"], "frameId":"frame-a", "placement": { "mode":"explicit", "positions":[{ "x":32, "y":32, "width":320, "height":600 }] } }] }`.
+
+Coordinates are absolute canvas units, including Frame members. Caller owns grouping, order, dimensions and placement. At most 100 Frames and 500 media entries per batch. Each media entry retains the existing 1-100 URL limit. Stable Frame/media IDs are idempotent; changed bounds, names, positions or media URLs conflict. The CLI never revives deleted elements. Members must be contained by their Frame. Frames may be empty. Existing Frame IDs can be referenced with an empty frames array.
+
+Optional `posterUrl` sets an external video's explicit thumbnail while `urls` retains its playable source. Optional `sourceMetadata` accepts string fields sourceUrl, productId, shopId, category and assetId; this hidden trace is separate from generation details. `canvas get ID --json` returns Frames, membership and metadata. Save backs up current content, checks for concurrent edits and verifies the saved elements by readback. After unknown save outcomes, query the same canvas and reuse the same batch. Do not create another canvas or change IDs to bypass conflicts.
+
+
+`canvas place ID --file FILE.json --json` previews explicit coordinate changes to existing elements; add `--submit` to save. FILE is an array of `{id,x,y,width,height,expected?:{x,y,width,height}}`. Move a Frame and its members together using absolute coordinates. IDs, membership, URLs and metadata are preserved. Optional expected bounds prevent overwriting concurrent changes; already-applied destinations are idempotent. The CLI checks resulting Frame containment, saves a private content backup and verifies readback. Layout decisions belong to the caller.
+
+Batch JSON optionally accepts `texts: [{id,text,x,y,width,height,fontSize}]`. Coordinates and bounds are explicit; text supports 1–1000 characters and fontSize 8–200. Stable text IDs replay unchanged; conflicting text or geometry fails. Text content and placement are caller-owned.
