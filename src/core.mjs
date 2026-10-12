@@ -43,7 +43,7 @@ export function secureUrl(value) {
 }
 export function parse(argv, allowed, repeat = []) {
   const options = {}, args = [];
-  const boolean = new Set(['json','dry-run','submit','new','live','yes','force','desktop']);
+  const boolean = new Set(['json','dry-run','submit','new','live','yes','force','desktop','root']);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) { args.push(a); continue; }

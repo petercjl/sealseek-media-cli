@@ -188,7 +188,14 @@
       "upload": [
         "image upload FILE --submit",
         "video upload FILE --submit"
-      ]
+      ],
+      "list": "canvas list [--folder FOLDER_ID] [--keyword TEXT]",
+      "folders": "canvas folders [--keyword TEXT]",
+      "rename": "canvas rename ID --title TEXT [--submit]",
+      "move": "canvas move ID (--folder FOLDER_ID | --root) [--submit]",
+      "project_list": "project list [--keyword TEXT]",
+      "project_create": "project create --name TEXT --request-id KEY [--submit]",
+      "project_rename": "project rename ID --name TEXT [--submit]"
     },
     "import_fields": {
       "required": [
@@ -223,7 +230,10 @@
       "INVALID_INPUT",
       "IDEMPOTENCY_CONFLICT",
       "CANVAS_CHANGED",
-      "CANVAS_SAVE_UNCERTAIN"
+      "CANVAS_SAVE_UNCERTAIN",
+      "FOLDER_NOT_FOUND",
+      "CANVAS_UPDATE_UNCERTAIN",
+      "PROJECT_UPDATE_UNCERTAIN"
     ],
     "features": [
       "frame-batch",
@@ -232,7 +242,12 @@
       "video-poster",
       "media-inspect",
       "element-placement",
-      "text-batch"
+      "text-batch",
+      "canvas-rename",
+      "canvas-move",
+      "folder-discovery",
+      "project-create",
+      "project-rename"
     ],
     "batch": {
       "command": "canvas batch ID --file JSON_FILE [--submit]",
@@ -256,6 +271,36 @@
       "input": "array of id,x,y,width,height and optional expected bounds",
       "preserves": "element identity, Frame membership, media URL, metadata",
       "recovery": "query same canvas; repeat same placements; previous bounds checked unless already applied"
+    },
+    "file_management": {
+      "destination": "Existing flat project/folder ID or root; projects and folders share IDs.",
+      "preview_default": true,
+      "submission_flag": "--submit",
+      "backup": "Private metadata and content before mutation; backup path returned.",
+      "verification": "Read back title, folder ownership and unchanged content.",
+      "idempotency": "Already-applied title or destination returns changed:false without mutation.",
+      "preserves": [
+        "canvas-id",
+        "conversation-binding",
+        "content"
+      ],
+      "recovery": "Inspect the same canvas after uncertain outcomes; no automatic replay."
+    },
+    "project_management": {
+      "name_length": [
+        1,
+        20
+      ],
+      "preview_default": true,
+      "create_request_id": "Required stable 1-100 ASCII letters/digits/underscore/hyphen, account-scoped.",
+      "create_recovery": "Intent before POST; remote ID before readback; reuse ID/name without another POST; unresolved creation blocks replay.",
+      "rename_recovery": "Private metadata backup and verified readback by the same folder ID.",
+      "preserves": [
+        "project-id-on-rename",
+        "canvas-membership",
+        "conversation-binding"
+      ],
+      "side_effects": "Creates a project or changes its name; no media generation or automatic canvas move."
     }
   }
 }

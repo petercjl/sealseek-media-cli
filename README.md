@@ -124,3 +124,25 @@ Example `media.json` for an existing asset:
 For strict left-to-right submission order with concurrent tasks, reserve coordinates in the application and pass explicit positions, or invoke grid arrangement after all tasks complete. Default append prioritizes preservation of existing layout over retrospective reordering. Sequential standalone generation naturally retains generation order.
 
 Canvas writes preserve other content/settings, create private backups and verify saved positions and details. The service exposes no atomic revision check; avoid concurrent manual editing while saving. CLI-local locks serialize writes from the same state directory. Cross-device writers still require coordination. `canvas list`, `canvas get` and `canvas tasks` provide inspection; unknown outcomes require checking saved state before another mutation.
+
+### Rename and move canvas files
+
+The CLI can list projects/folders, filter canvases by folder, rename a canvas and move it to an existing project/folder or back to root. Projects and folders share one ID namespace. Changes preserve canvas IDs, conversation bindings and media; they default to preview, save a private backup on submission and verify the result by readback. See the bundled [CLI contract](skills/sealseek-media/references/cli.md#canvas-file-management) for commands and recovery.
+
+Example Agent requests:
+
+> 用 SealSeek Media 把这个画板重命名为“新品素材”。
+
+> 用 SealSeek Media 把这个画板移到“产品设计”项目中。
+
+> 用 SealSeek Media 把这个画板移回根目录。
+
+### Create and rename projects
+
+SealSeek Media can create projects and rename existing projects. Project names support up to 20 characters. The CLI previews changes, verifies saved names and prevents repeated project creation for the same request. Projects and folders share the same identity; creating a project does not automatically move a canvas into it.
+
+> 用 SealSeek Media 新建一个“新品素材”项目。
+
+> 用 SealSeek Media 把“新品素材”项目重命名为“秋季新品”。
+
+See the bundled [project contract](skills/sealseek-media/references/cli.md#project-management) for the Agent's invocation and recovery rules.

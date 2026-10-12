@@ -7,7 +7,7 @@ import {META,stateRoot,hash,requireValue,createJson,readJson,replaceJob,exists,s
 import {validatePlacement} from './placement.mjs';
 
 export function canvasId(value){requireValue(typeof value==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(value),'INVALID_INPUT','Provide a valid canvas ID.');return value;}
-export function canvasSummary(v){return {canvas_id:String(v.id),title:v.title,canvas_url:v.canvasUrl,updated_at:v.updateTime};}
+export function canvasSummary(v){return {canvas_id:String(v.id),title:v.title,canvas_url:v.canvasUrl,updated_at:v.updateTime,...(Object.hasOwn(v,'folderId')?{folder_id:v.folderId===null?null:String(v.folderId),folder_name:v.folderName??null}:{})};}
 export async function accountScope(cfg){
   const r=await authenticatedFetch(new URL('/api/user/user/info',cfg.url.origin),{headers:cfg.headers,signal:AbortSignal.timeout(30000)}),v=await r.json();
   requireValue(r.ok&&v.code===200&&v.data?.userUuid,'AUTH_REJECTED','Cannot determine the authenticated canvas account.');
@@ -15,9 +15,9 @@ export async function accountScope(cfg){
 }
 export async function getCanvas(cfg,id){const v=await request(cfg,'/canvas/detail/'+encodeURIComponent(canvasId(id)));requireValue(v?.id!==undefined&&String(v.id)===id,'CANVAS_NOT_FOUND','The selected canvas is unavailable. Select an existing canvas or explicitly create one.');return v;}
 export async function createCanvas(cfg,title){requireValue(typeof title==='string'&&title.trim().length>0&&title.length<=200,'INVALID_INPUT','Provide a canvas title (1-200 characters).');const v=await request(cfg,'/canvas/create',{method:'POST',data:{title,description:'Media archive',tags:['CLI']},submission:true});requireValue(v?.id!==undefined,'SUBMISSION_UNCERTAIN','Canvas creation returned no ID. Inspect canvas list before creating again.');return v;}
-export async function listCanvases(cfg,{page=1,limit=20,keyword}={}){requireValue(Number.isInteger(page)&&page>0&&Number.isInteger(limit)&&limit>=1&&limit<=100,'INVALID_INPUT','Page must be positive; limit must be 1-100.');const q=new URLSearchParams({pageNum:String(page),pageSize:String(limit),...(keyword?{keyword}:{})});const v=await request(cfg,'/canvas/list?'+q);return {canvases:(v.records||[]).map(canvasSummary),total:v.total,page:v.current,pages:v.pages};}
+export async function listCanvases(cfg,{page=1,limit=20,keyword,folder}={}){requireValue(Number.isInteger(page)&&page>0&&Number.isInteger(limit)&&limit>=1&&limit<=100,'INVALID_INPUT','Page must be positive; limit must be 1-100.');const q=new URLSearchParams({pageNum:String(page),pageSize:String(limit),...(keyword?{keyword}:{}),...(folder!==undefined?{folderId:folder}:{})});const v=await request(cfg,'/canvas/list?'+q);return {canvases:(v.records||[]).map(canvasSummary),total:v.total,page:v.current,pages:v.pages};}
 
-async function locked(key,fn){
+export async function locked(key,fn){
   const p=path.join(stateRoot(),'canvases',key+'.lock');
   const end=Date.now()+30000;
   for(;;){

@@ -171,3 +171,30 @@ Optional `posterUrl` sets an external video's explicit thumbnail while `urls` re
 `canvas place ID --file FILE.json --json` previews explicit coordinate changes to existing elements; add `--submit` to save. FILE is an array of `{id,x,y,width,height,expected?:{x,y,width,height}}`. Move a Frame and its members together using absolute coordinates. IDs, membership, URLs and metadata are preserved. Optional expected bounds prevent overwriting concurrent changes; already-applied destinations are idempotent. The CLI checks resulting Frame containment, saves a private content backup and verifies readback. Layout decisions belong to the caller.
 
 Batch JSON optionally accepts `texts: [{id,text,x,y,width,height,fontSize}]`. Coordinates and bounds are explicit; text supports 1–1000 characters and fontSize 8–200. Stable text IDs replay unchanged; conflicting text or geometry fails. Text content and placement are caller-owned.
+
+## Canvas file management
+
+- `canvas folders [--keyword TEXT] --json` lists project/folder IDs, names and canvas counts. The backend exposes projects and folders as the same flat objects; this command does not create folders or infer hierarchy.
+- `canvas list [--folder FOLDER_ID] [--keyword TEXT] [--page N] [--limit N] --json` finds canvases. Summaries include `folder_id` and `folder_name` when supplied by the backend; null means root.
+- `canvas rename ID --title TEXT --json` previews a title change (1–200 characters). Add `--submit` to execute.
+- `canvas move ID --folder FOLDER_ID --json` previews moving to one existing project/folder. `canvas move ID --root --json` previews returning to root. Add `--submit` to execute. Choose exactly one destination.
+
+The caller supplies the canvas ID, title and destination. Use discovery to resolve exact IDs; duplicate names require user selection. Preview returns `before`, `target` and `dry_run:true` without calling mutation endpoints. Execution saves a private metadata/content backup before the write, changes only the requested title or folder ownership, and verifies content, title and folder by readback. Successful results return `verified:true`, `changed`, the canvas summary and a backup path when a write occurred. Repeating an already-applied change returns `changed:false` without another write. IDs, conversation bindings and media are preserved. These operations do not generate media or incur generation credits.
+
+The backend uses PUT `/canvas/update` for rename and GET `/canvas/folder/bind` or `/canvas/folder/unbind` for move. Despite the HTTP GET method, bind/unbind are mutations and run only with `--submit`. Existing local canvas locks serialize these writes with content saves in the same state directory. The service has no atomic revision guard; coordinate manual/cross-device edits.
+
+`FOLDER_NOT_FOUND` means the selected destination is absent. Missing ownership information fails before a move. `CANVAS_UPDATE_UNCERTAIN` or `SUBMISSION_UNCERTAIN` returns the canvas ID and private backup path with `retry_automatically:false`. Inspect the same canvas via `canvas get ID` before any explicitly authorized retry; do not create a replacement canvas.
+
+## Project management
+
+Projects and canvas folders are the same backend objects. These commands manage their names and identity; canvas contents and conversation bindings stay separate.
+
+- `project list [--keyword TEXT] --json` is the project-oriented alias for `canvas folders`.
+- `project create --name TEXT --request-id KEY [--submit] --json` previews or creates a project. Use a unique stable key per logical creation, 1–100 ASCII letters, numbers, underscores or hyphens (a UUID is suitable). Both preview and submission require the key.
+- `project rename ID --name TEXT [--submit] --json` previews or renames one existing project, preserving its ID and membership.
+
+Names must have 1–20 characters and contain non-whitespace text. Inputs are preserved exactly. Both writes default to preview. Submission returns `verified:true`, `changed` and `project` with `folder_id`, `name` and available `canvas_count`. Creation also returns `request_id` and a private `record`; rename returns a private metadata `backup` when changed. Pass the returned folder ID to `canvas move ID --folder FOLDER_ID --submit` when the user requests that separate operation. Creating a project alone does not move or bind canvases.
+
+Creation persists account-scoped intent before POST `/canvas/folder/create` (`{folderName}`), then persists its returned integer ID before list verification. Reusing the same request ID/name returns the current existing project without another POST, including if it was subsequently renamed. Reusing that ID with a different creation name fails with `IDEMPOTENCY_CONFLICT`. A missing previously created project fails instead of recreating it. An unresolved record blocks repeat creation with `SUBMISSION_UNCERTAIN`; inspect `project list` and the returned record, retain any discovered project ID, and continue with that existing ID. Do not bypass uncertainty by changing the request ID.
+
+Rename saves and verifies a private metadata backup before POST `/canvas/folder/update` (`{id,folderName}`), then verifies the same ID and name through the folder list. Repeating an applied rename returns `changed:false`. `PROJECT_UPDATE_UNCERTAIN`, authentication/network failures and uncertain submissions include recovery information with `retry_automatically:false`; inspect `project list` before any explicitly authorized retry. Names can be duplicated by the backend; choose existing targets by ID and ask the user when names are ambiguous.

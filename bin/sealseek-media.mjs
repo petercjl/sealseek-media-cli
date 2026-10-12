@@ -7,6 +7,8 @@ import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src
 import { connect, desktopConfig, call,request as canvasRequest,NATIVE_CONTRACT,validateNativeInput } from '../src/canvas.mjs';
 import { prepare, reference, upload, download } from '../src/media.mjs';
 import { submit, getJob, summary, waitJob, worker,resumeJob,syncJob } from '../src/jobs.mjs';
+import {listFolders,changeCanvasFile,folderId} from '../src/canvas-files.mjs';
+import {createProject,renameProject} from '../src/projects.mjs';
 import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases,archiveMedia,appendMedia,applyCanvasBatch,batchCanvas,placeCanvas} from '../src/boards.mjs';
 import {archiveOptions,validatePlacement} from '../src/placement.mjs';
 import { SOURCE, status, install } from '../src/skills.mjs';
@@ -62,7 +64,13 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   canvas place ID --file JSON_FILE [--submit] --json (explicit element bounds)
   canvas batch ID --file JSON_FILE [--submit] --json (explicit frames, media and optional texts)
   canvas create --title TEXT --submit --json
-  canvas list [--keyword TEXT] [--page N] [--limit N] --json
+  canvas list [--folder FOLDER_ID] [--keyword TEXT] [--page N] [--limit N] --json
+  canvas folders [--keyword TEXT] --json (projects and folders share IDs)
+  project list [--keyword TEXT] --json
+  project create --name TEXT --request-id KEY [--submit] --json
+  project rename ID --name TEXT [--submit] --json
+  canvas rename ID --title TEXT [--submit] --json
+  canvas move ID [--folder FOLDER_ID | --root] [--submit] --json
   canvas get ID --json
   canvas use ID [--session CONVERSATION_ID] --yes --json
   canvas delete [ID | --title EXACT_TITLE] [--submit --yes] --json
@@ -110,9 +118,24 @@ async function main(argv) {
     }
   }
   if(command==='media'&&action==='inspect'){const {options}=parse(rest,[...common,'url','kind']);requireValue(options.url,'INVALID_INPUT','Provide --url.');return out({ok:true,...await inspectMediaUrl(options.url,options.kind||'image')});}
+  if(command==='project'){
+    const flags={list:['keyword'],create:['name','request-id','submit'],rename:['name','submit']};
+    requireValue(Object.hasOwn(flags,action),'UNKNOWN_COMMAND','Use project list, create or rename.');
+    const {options,args}=parse(rest,[...common,...flags[action]]);
+    requireValue(args.length===(action==='rename'?1:0),'INVALID_INPUT','Provide one project ID only for rename.');
+    const cfg=await desktopConfig(options);
+    if(action==='list')return out({ok:true,...await listFolders(cfg,{keyword:options.keyword})});
+    if(action==='create')return out({ok:true,...await createProject(cfg,{name:options.name,requestId:options['request-id'],submit:!!options.submit})});
+    return out({ok:true,...await renameProject(cfg,args[0],{name:options.name,submit:!!options.submit})});
+  }
   if(command==='canvas'){
-    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit','media','placement','file']);
-    requireValue(['create','list','get','use','tasks','arrange','delete','add','batch','place'].includes(action),'UNKNOWN_COMMAND','Use canvas create, list, get, use or tasks.');
+    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit','media','placement','file','folder','root']);
+    requireValue(['create','list','get','use','tasks','arrange','delete','add','batch','place','folders','rename','move'].includes(action),'UNKNOWN_COMMAND','Use canvas --help to inspect canvas operations.');
+    const fileOptions={folders:['keyword'],rename:['title','submit'],move:['folder','root','submit']};
+    if(fileOptions[action])requireValue(Object.keys(options).every(k=>[...common,...fileOptions[action]].includes(k)),'INVALID_INPUT','Unsupported option for canvas '+action+'.');
+    else requireValue(!options.root&&(options.folder===undefined||action==='list'),'INVALID_INPUT','Folder selection applies to canvas list or move.');
+    if(action==='folders'){requireValue(args.length===0,'INVALID_INPUT','canvas folders takes no canvas ID.');return out({ok:true,...await listFolders(await desktopConfig(options),{keyword:options.keyword})});}
+    if(['rename','move'].includes(action)){requireValue(args.length===1&&(action!=='rename'||options.title!==undefined),'INVALID_INPUT','Provide one canvas ID and a title for rename.');if(action==='move')requireValue(options.title===undefined,'INVALID_INPUT','Use canvas rename to change a title.');return out({ok:true,...await changeCanvasFile(await desktopConfig(options),args[0],{title:options.title,folder:options.folder,root:!!options.root,submit:!!options.submit})});}
     if(action==='place'){requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas place ID --file JSON_FILE [--submit].');const placements=JSON.parse(await fs.readFile(options.file,'utf8'));return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await placeCanvas(c.cfg,args[0],placements,!!options.submit)}));}
     if(action==='batch'){
       requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas batch ID --file JSON_FILE [--submit].');
@@ -136,7 +159,7 @@ async function main(argv) {
     return withConnection(options,async c=>{
       if(action==='arrange')return out({ok:true,canvas_id:args[0],...await arrangeCanvas(c.cfg,args[0],validatePlacement({...((await archiveOptions(options)).placement),mode:'grid'}))});
       if(action==='create')return out({ok:true,...canvasSummary(await createCanvas(c.cfg,options.title))});
-      if(action==='list')return out({ok:true,...await listCanvases(c.cfg,{page:Number(options.page||1),limit:Number(options.limit||20),keyword:options.keyword})});
+      if(action==='list')return out({ok:true,...await listCanvases(c.cfg,{page:Number(options.page||1),limit:Number(options.limit||20),keyword:options.keyword,...(options.folder!==undefined?{folder:String(folderId(options.folder))}:{})})});
       if(action==='use')return out({ok:true,...await useCanvas(c.cfg,args[0],options.session||process.env.SEALSEEK_MEDIA_SESSION_ID||process.env.CODEX_THREAD_ID)});
       const board=await getCanvas(c.cfg,canvasId(args[0]));
       if(action==='tasks')return out({ok:true,...canvasSummary(board),tasks:await canvasRequest(c.cfg,'/canvas/tasks?'+new URLSearchParams({canvasId:args[0]}))});
