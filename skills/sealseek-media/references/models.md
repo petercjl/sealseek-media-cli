@@ -1,6 +1,6 @@
 # SealSeek 模型参数
 
-插件提供 3 个生图模型和 2 个生视频模型。实时目录经过插件白名单过滤；参数来源为无限画板实时模型目录和官方 OpenAPI。默认模型在省略 `--model` 时自动写入请求，只有用户明确指定模型时，Agent 才传入对应的 `--model`；其余情况省略该参数，使用默认模型。任务类型、文字渲染、效果、费用或参考素材要求都不构成 Agent 自行选择模型的依据。参数不兼容时报告限制，等待用户明确选择模型或调整要求。
+插件提供 4 个生图模型和 2 个生视频模型。实时目录经过插件白名单过滤；参数来源为无限画板实时模型目录和官方 OpenAPI。默认模型在省略 `--model` 时自动写入请求，只有用户明确指定模型时，Agent 才传入对应的 `--model`；其余情况省略该参数，使用默认模型。任务类型、文字渲染、效果、费用或参考素材要求都不构成 Agent 自行选择模型的依据。参数不兼容时报告限制，等待用户明确选择模型或调整要求。
 
 ## 生图模型
 
@@ -9,8 +9,17 @@
 | gpt-image-2.5-sunburst | 默认 | 1K, 2K, 4K | 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 16:9, 9:16, 21:9 | 16 |
 | nano-banana-pro | 备选 | 1K, 2K, 4K | 1:1, 16:9, 9:16, 4:3, 3:4, 21:9, 3:2, 2:3, 5:4, 4:5 | 14 |
 | gpt-image-2.5-flare | 备选 | 1K, 2K, 4K | 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 16:9, 9:16, 21:9 | 16 |
+| nano-banana2.1 | 备选 | 1K, 2K, 4K | 1:1, 1:4, 4:1, 1:8, 8:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9 | 14 |
 
 图片张数 1–4，默认 1。按目录选取比例和清晰度，实际尺寸以文件检查为准。`--size` 的精确像素控制尚未验证有效，提交前拒绝。本地参考图支持 PNG/JPEG/WebP/GIF，单张不超过 30 MiB；参考数量上限属于目录声明。
+
+## Nano Banana 2.1 使用
+
+用户指定 Nano Banana 2.1 时使用精确 ID `nano-banana2.1`。文生图走 `image generate`；参考图生成使用同一命令并按原顺序重复 `--reference`；单图修改走 `image edit --image FILE_OR_URL --model nano-banana2.1 --prompt TEXT`，底层复用参考图生成。文字修改也可用该参考图编辑流程。专用快速编辑与文字替换端点的模型限制以 `models show` 为准。
+
+省略画幅、清晰度和张数时分别使用 1:1、1K、1 张。1:4、4:1、1:8、8:1 可通过 `--ratio` 明确传入。先读取 `models show nano-banana2.1 --live --json`，需要报价时调用 `models estimate nano-banana2.1 --resolution 1K --count 1 --json`。报价是实时信息，按本次返回报告。
+
+按 [CLI contract](cli.md#nano-banana-21) 的示例校验，通过后在已授权生图请求中提交并跟踪同一任务 ID。目录、报价与 dry-run 表示声明和参数校验；实际出图效果及输出尺寸在任务完成后检查。
 
 ## 生视频模型
 
@@ -27,7 +36,7 @@ Seedance 2.5 支持图片参考，当前目录不支持首尾帧。Seedance 2.0 
 
 `--video-options JSON_FILE`：通用字段 `motionIntensity`、`style`；Seedance 2.5 支持 `omniReferenceTaskType`（reference/edit/extend/auto）及 `outputFormat`（mp4/mov）；Seedance 2.0 支持 `videoWebSearch`，开启时要求纯文本输入。详见 [CLI contract](cli.md#advanced-video-parameters)。高级组合按官方声明接入，未实测组合明确标记。
 
-`image edit` 使用默认或用户指定的生图模型：GPT Image 模型走参考图生成，用户明确指定 Nano Banana Pro 时走专用快速编辑。专用 `image replace-text` 仅支持 Nano Banana Pro，省略模型时保持默认模型并返回不支持错误；使用默认模型修改文字时可走参考图生成。`image detect-text` 为独立 OCR 文字检测，没有可选择的生图模型；替换可使用检测返回的 0–1 归一化坐标。镜头控制、局部重绘蒙版、多音频参考及图片参考角色字段尚未封装。
+`image edit` 使用默认或用户指定的生图模型：GPT Image 与 Nano Banana 2.1 模型走参考图生成，用户明确指定 Nano Banana Pro 时走专用快速编辑。专用 `image replace-text` 仅支持 Nano Banana Pro，省略模型时保持默认模型并返回不支持错误；使用默认模型修改文字时可走参考图生成。`image detect-text` 为独立 OCR 文字检测，没有可选择的生图模型；替换可使用检测返回的 0–1 归一化坐标。镜头控制、局部重绘蒙版、多音频参考及图片参考角色字段尚未封装。
 
 ## 校验与结果核对
 
@@ -37,4 +46,4 @@ Seedance 2.5 支持图片参考，当前目录不支持首尾帧。Seedance 2.0 
 
 ## 实测范围
 
-这 5 个保留模型均有无限画板真实生成成功案例。Seedance 2.5 已验证文生视频与图片参考，Seedance 2.0 已验证文生视频与首尾帧。`models show` 的 `observed_runtime` 按接口、参数与完成状态列出案例；参考数量上限和未实测组合保持目录声明状态。
+Sunburst、Nano Banana Pro、Flare、Seedance 2.5 和 Seedance 2.0 均有无限画板真实生成成功案例。Nano Banana 2.1 参数来自 2026-10-14 服务端目录，真实生成尚未验证。Seedance 2.5 已验证文生视频与图片参考，Seedance 2.0 已验证文生视频与首尾帧。`models show` 的 `observed_runtime` 按接口、参数与完成状态列出案例；参考数量上限和未实测组合保持目录声明状态。

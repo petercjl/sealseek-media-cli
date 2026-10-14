@@ -1,6 +1,6 @@
 {
   "source": "https://gateway.sealseek.cn/api/sealseek-infinitecanvas/api/generation-models",
-  "retrieved_at": "2026-10-08",
+  "retrieved_at": "2026-10-14T06:58:57.443Z",
   "evidence": "provider_catalog_declared",
   "models": [
     {
@@ -121,6 +121,50 @@
         "supportsCameraControl": false
       },
       "description": "最新最强模型，均衡通用，快速出图",
+      "isNew": false
+    },
+    {
+      "id": "nano-banana2.1",
+      "name": "sealseek-ai-image-2.1",
+      "provider": "google",
+      "type": "image",
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "capabilities": {
+        "maxResolution": "4K",
+        "aspectRatios": [
+          "1:1",
+          "1:4",
+          "4:1",
+          "1:8",
+          "8:1",
+          "2:3",
+          "3:2",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "9:16",
+          "16:9",
+          "21:9"
+        ],
+        "supportsReference": true,
+        "maxReferences": 14,
+        "supportsStyleTransfer": true,
+        "supportsInpainting": false,
+        "durations": null,
+        "supportsAudio": false,
+        "modes": [],
+        "supportsFirstFrame": false,
+        "supportsLastFrame": false,
+        "supportsVideoReference": false,
+        "maxVideoReferences": 0,
+        "supportsCameraControl": false
+      },
+      "description": "支持 1K–4K 图像生成、参考图融合与编辑",
       "isNew": false
     },
     {

@@ -11,8 +11,8 @@ import { hash } from '../src/core.mjs';
 const props={prompt:{type:'string'},model:{type:'string'},duration:{type:'integer'},aspect_ratio:{type:'string'},resolution:{type:'string'},num:{type:'integer'},reference_images:{type:'array',items:{type:'string'}},first_frame_image:{type:'string'},last_frame_image:{type:'string'}};
 const tools=['image','video'].map(type=>({name:`generate_${type}`,inputSchema:{type:'object',properties:props,required:['model','prompt']}}));
 
-test('all provider-catalog choices validate and unsupported values fail for all five allowed models',()=>{
- assert.equal(CATALOG.models.length,5);
+test('all provider-catalog choices validate and unsupported values fail for all six allowed models',()=>{
+ assert.equal(CATALOG.models.length,6);
  for(const m of CATALOG.models){
   const base={model:m.id};
   for(const resolution of m.resolutions)for(const ratio of m.capabilities.aspectRatios)for(const duration of m.capabilities.durations||[undefined])assert.equal(validateModel(m.type,{...base,resolution,ratio,duration},{tools}).model,m.id);

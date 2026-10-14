@@ -33,6 +33,20 @@ Image count is 1–4. Resolution, ratio, duration and reference limits vary by m
 
 Global npm installs enable automatic stable updates by default: CLI invocation checks npm `latest` daily, installs a newer version before executing the request once through the updated CLI, and synchronizes managed default Skill copies. Active media/login work and local Skill edits postpone updates; offline failures keep the ordinary command available. Internal workers and Git checkouts do not auto-update. `update auto status|on|off --json` controls the policy; `SEALSEEK_MEDIA_AUTO_UPDATE=0` disables it for one process. `update install --yes --json` checks immediately. Package and Skill backups remain available for recovery. Reload `skill source --json` after a reported update; updated instructions remain canonical.
 
+## Nano Banana 2.1
+
+Nano Banana 2.1 uses the exact model ID `nano-banana2.1` and the normal image-generation transport. Query its live contract before composing parameters. Text-to-image, ordered image references and reference editing share the existing task/recovery contract.
+
+```bash
+sealseek-media models show nano-banana2.1 --live --json
+sealseek-media models estimate nano-banana2.1 --ratio 1:1 --resolution 1K --count 1 --json
+sealseek-media image generate --model nano-banana2.1 --prompt "A red ceramic mug on a white background" --ratio 1:1 --resolution 1K --count 1 --dry-run --json
+sealseek-media image generate --model nano-banana2.1 --prompt "Follow the reference; soft studio lighting" --reference ./reference.png --ratio 8:1 --resolution 2K --dry-run --json
+sealseek-media image edit --model nano-banana2.1 --image ./reference.png --prompt "Change the background to pale blue; preserve the subject" --dry-run --json
+```
+
+For authorized generation, replace `--dry-run` with `--via sealseek --submit` and use the returned task ID for follow-up. Nano Banana 2.1 edits report `operation: reference-edit`; dedicated quick-edit and text-replacement are separate endpoint contracts. Current discovery declares 1K/2K/4K, up to 14 image references and 14 ratios, including 1:4, 4:1, 1:8 and 8:1. Defaults are 1:1, 1K and one output. Real-generation acceptance remains unverified until an authorized task completes.
+
 ## Video workflow and diagnostics
 
 Read `models show ID --live --json` or `video guide --model ID --live --json` before choosing reference mode. `--reference` supplies appearance/content guidance; `--first` and `--last` express exact frame constraints. Seedance 2.5 supports image references, with first/last-frame inputs unsupported in the current model catalog. If the fixed default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for the human to name a supported model or adjust the requirement. The CLI reports unsupported parameters with allowed values before upload/submission.
@@ -89,7 +103,7 @@ Multi-audio references and image reference role/description fields are not expos
 
 Fix the default or human-selected model before composing parameters. A human requirement outside that model's documented capability is `FEATURE_UNSUPPORTED` and stops before upload or generation. With default Seedance 2.5, an explicit first/last-frame requirement must report an error: preserve the model and frame semantics. A new model requires the human to name it; adjusting the frame requirement also requires the human's choice.
 
-`--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro` and `gpt-image-2.5-flare`; video alternative is `doubao-seedance-2-0`. Pass `--model` only when the human explicitly names that model; otherwise omit it. The Agent retains the default for text rendering, quality, cost, reference compatibility and recovery. If requirements are unsupported, report them and wait for an explicit human model or parameter choice. Model discovery, estimates, image editing and background generation all enforce the package allowlist.
+`--model` is optional for generation: images select `gpt-image-2.5-sunburst`, videos select `doubao-seedance-2-5`. Image alternatives are `nano-banana-pro`, `gpt-image-2.5-flare` and `nano-banana2.1`; video alternative is `doubao-seedance-2-0`. Pass `--model` only when the human explicitly names that model; otherwise omit it. The Agent retains the default for text rendering, quality, cost, reference compatibility and recovery. If requirements are unsupported, report them and wait for an explicit human model or parameter choice. Model discovery, estimates, image editing and background generation all enforce the package allowlist.
 
 ## Automatic video reference review
 

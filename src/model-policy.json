@@ -3,7 +3,8 @@
     "default": "gpt-image-2.5-sunburst",
     "alternatives": [
       "nano-banana-pro",
-      "gpt-image-2.5-flare"
+      "gpt-image-2.5-flare",
+      "nano-banana2.1"
     ]
   },
   "video": {

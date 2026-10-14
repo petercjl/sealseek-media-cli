@@ -63,14 +63,32 @@ sealseek-media models show MODEL_ID --live --json
 sealseek-media models estimate MODEL_ID --resolution VALUE --json
 ```
 
-The CLI calls the Infinite Canvas REST service directly for model discovery, uploads, generation, task polling and history. It ships no MCP client. The live catalog covers 3 image and 2 video models, with model-specific resolutions, ratios, durations and references. Video/audio references, audio generation have explicit inputs where supported. Model-specific advanced parameters use `--video-options JSON_FILE`, validated before submission. Dedicated image quick-edit, text detection and text replacement are also exposed. See the bundled Skill’s `references/models.md` for current limits and verified cases.
+The CLI calls the Infinite Canvas REST service directly for model discovery, uploads, generation, task polling and history. It ships no MCP client. The live catalog covers 4 image and 2 video models, with model-specific resolutions, ratios, durations and references. Video/audio references, audio generation have explicit inputs where supported. Model-specific advanced parameters use `--video-options JSON_FILE`, validated before submission. Dedicated image quick-edit, text detection and text replacement are also exposed. See the bundled Skill’s `references/models.md` for current limits and verified cases.
 
 Submission saves both the local task UUID and provider task ID before polling. `task resume ID --json` queries the existing remote task after a credential or worker interruption; it never generates again. Historical tasks from previous releases can still be read and their stored outputs downloaded.
 
 Explicit pixel size is rejected: a real native request for 1024x1536 returned 2048x2048. Use catalog ratio/resolution choices and inspect actual output. Camera controls and inpainting masks are not exposed by this CLI. Read-only estimates and catalog validation do not prove provider execution. Provider task records identify the selected model but do not independently attest the served model.
 
 
-Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`) and GPT Image 2.5 Flare (`gpt-image-2.5-flare`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
+Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`), GPT Image 2.5 Flare (`gpt-image-2.5-flare`) and Nano Banana 2.1 (`nano-banana2.1`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image and Nano Banana 2.1 edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
+
+## Nano Banana 2.1 usage
+
+Select Nano Banana 2.1 with its exact model ID `nano-banana2.1`. It supports text-to-image, image references and reference-based editing, with 1K/2K/4K resolution, up to 14 reference images and 1–4 outputs. Ratios include the usual portrait/landscape formats plus 1:4, 4:1, 1:8 and 8:1. Current limits come from live discovery; actual generation is not yet verified.
+
+Copyable Agent requests:
+
+> 用 sealseek-media 的 nano-banana2.1 生成一张白色背景的红色陶瓷杯图片，1:1，1K。
+
+For reference-based generation or editing, attach the source image and state the desired change:
+
+> 用 sealseek-media 的 nano-banana2.1，把所附图片的背景改为浅蓝色，保留主体。
+
+To inspect availability and current pricing before generation:
+
+> 检查 sealseek-media 的 nano-banana2.1 是否可用，并查询 1K 单张价格。
+
+The CLI's `image edit` uses reference-image generation for this model. Dedicated quick-edit and text-replacement endpoints retain their own model limits. See the bundled Skill's [model guide](skills/sealseek-media/references/models.md#nano-banana-21-使用) for execution details.
 
 ## Automatic video reference preparation
 
