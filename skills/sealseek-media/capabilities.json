@@ -5,7 +5,8 @@
   "target_platforms": [
     "codex",
     "workbuddy",
-    "sealseek"
+    "sealseek",
+    "generic"
   ],
   "capabilities": [
     {
@@ -302,5 +303,15 @@
       ],
       "side_effects": "Creates a project or changes its name; no media generation or automatic canvas move."
     }
+  },
+  "host_resolution": {
+    "named_adapters": [
+      "codex",
+      "workbuddy",
+      "sealseek"
+    ],
+    "fallback_adapter": "generic",
+    "requirements": "Node.js >=22, CLI execution, structured JSON and delivery-file access; verify in the current host.",
+    "installation": "Other Agents resolve their own Skill directory and pass --path. Names are adapter preferences, not a host allowlist."
   }
 }

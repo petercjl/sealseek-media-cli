@@ -5,12 +5,29 @@ import crypto from 'node:crypto';
 import { ROOT, META, exists, requireValue, hash, createJson, readJson, stateRoot } from './core.mjs';
 
 export const SOURCE = path.join(ROOT, 'skills', 'sealseek-media');
+const ROOTS = { codex:'.codex', workbuddy:'.workbuddy', sealseek:'.sealseek' };
+export const INSTALLATION = {
+  named_agents: Object.keys(ROOTS), fallback_agent: 'generic', custom_path_required: true,
+  target_resolution: 'Use a named adapter when present; other valid Agent names use generic with an explicit --path.',
+  directory_resolution: 'The calling Agent resolves its own advertised/configured Skill directory. The package does not scan other Agents.',
+  commands: {
+    install: 'sealseek-media skill install --agent generic --path <own-skill-directory>/sealseek-media --json',
+    status: 'sealseek-media skill status --agent generic --path <own-skill-directory>/sealseek-media --json',
+    update: 'sealseek-media skill update --agent generic --path <own-skill-directory>/sealseek-media --json'
+  },
+  update_scope: 'Custom paths require explicit skill update with the same --path after a package update.'
+};
 const MARKER = '.sealseek-media-install.json';
 export function renderSkill(text, agent) { return text; }
-export function destination(agent, custom) {
-  const roots = { codex:'.codex', workbuddy:'.workbuddy', sealseek:'.sealseek' };
-  requireValue(agent in roots, 'UNKNOWN_TARGET', 'Supported agents: codex, workbuddy, sealseek.');
-  return custom ? path.resolve(custom) : path.join(os.homedir(), roots[agent], 'skills','sealseek-media');
+export function destination(agent = 'generic', custom) {
+  requireValue(typeof agent === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(agent), 'INVALID_TARGET', 'Agent must be a lowercase name containing letters, digits or hyphens.');
+  const named = Object.hasOwn(ROOTS, agent);
+  requireValue(custom !== undefined || named, 'TARGET_PATH_REQUIRED', 'Resolve this Agent\'s own Skill directory and pass --path <directory>/sealseek-media. Named adapters are optional; other Agents use generic.', { agent, fallback_agent:'generic' });
+  if (custom !== undefined) {
+    requireValue(typeof custom === 'string' && custom.trim().length > 0, 'INVALID_INPUT', '--path requires a nonempty directory.');
+    return path.resolve(custom);
+  }
+  return path.join(os.homedir(), ROOTS[agent], 'skills','sealseek-media');
 }
 export async function hashes(dir) {
   const result={};
@@ -24,21 +41,22 @@ export async function hashes(dir) {
   }
   await walk();return result;
 }
-export async function status(agent, custom) {
+export async function status(agent = 'generic', custom) {
   const target=destination(agent,custom), stat=await exists(target), sourceHashes=await hashes(SOURCE);
+  const adapter = Object.hasOwn(ROOTS, agent) ? agent : 'generic';
   sourceHashes['SKILL.md'] = hash(renderSkill(await fs.readFile(path.join(SOURCE,'SKILL.md'),'utf8'),agent));
-  if (!stat) return { ok:true, agent, destination:target, installed:false, managed:false, current:false };
+  if (!stat) return { ok:true, agent, adapter, destination:target, installed:false, managed:false, current:false };
   if (stat.isSymbolicLink()) {
     const actual=await fs.realpath(target).catch(()=>null);
-    return { ok:true, agent, destination:target, installed:true, managed:actual === await fs.realpath(SOURCE), current:actual === await fs.realpath(SOURCE), mode:'link' };
+    return { ok:true, agent, adapter, destination:target, installed:true, managed:actual === await fs.realpath(SOURCE), current:actual === await fs.realpath(SOURCE), mode:'link' };
   }
   const manifest=await readJson(path.join(target,MARKER)).catch(()=>null);
   const managed=manifest?.owner===META.name;
   const actual=stat.isDirectory() ? await hashes(target) : {};
   const edited=managed && (Object.entries(manifest.hashes).some(([name,digest])=> actual[name]!==digest && name !== path.join('agents','openai.yaml')) || Object.keys(actual).some(name=>!(name in manifest.hashes)));
-  return { ok:true,agent,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && manifest.source===SOURCE && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
+  return { ok:true,agent,adapter,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && manifest.source===SOURCE && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
 }
-export async function install(agent, options = {}) {
+export async function install(agent = 'generic', options = {}) {
   const rename = options.rename || fs.rename;
   const info=await status(agent,options.path), target=info.destination;
   requireValue(!info.installed || info.managed, 'UNMANAGED_TARGET', 'Existing Skill is user-owned. Choose an unused --path.');

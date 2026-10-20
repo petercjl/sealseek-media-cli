@@ -1,6 +1,6 @@
 # @petercjl/sealseek-media-cli
 
-SealSeek image/video generation for Codex and WorkBuddy. The user configures provider routing in their Agent: this package can serve as a default, backup or task-specific provider.
+SealSeek image/video generation for Agents with CLI execution, with named adapters for Codex, WorkBuddy and SealSeek and a generic adapter for other hosts. The user configures provider routing in their Agent: this package can serve as a default, backup or task-specific provider.
 
 Requires Node.js 22+, valid SealSeek media authentication, and network access. Normal media operations read the managed credential profile or current-user `.sealseek/sealseek.json`. Override desktop discovery with `SEALSEEK_MEDIA_DESKTOP_CONFIG`, `SEALSEEK_MEDIA_SERVER`, or `--config`/`--server`. Credentials stay external and never enter task records.
 
@@ -17,6 +17,8 @@ sealseek-media skill install --agent workbuddy --json
 sealseek-media doctor --live --json
 sealseek-media capabilities --live --json
 ```
+
+For another Agent, let it resolve its own advertised/configured Skill directory and use `sealseek-media skill install --agent generic --path <own-skill-directory>/sealseek-media --json`. A valid host name such as `sealcraft` also selects the generic adapter when no named adapter exists. `skill source --json` publishes this installation contract. A missing generic destination returns `TARGET_PATH_REQUIRED`; the package does not guess another Agent’s directory. Use the same path with `skill status` and `skill update`; no local adapter or Skill edits are needed.
 
 One canonical Skill is bundled and available for normal Agent discovery. Installation does not set provider priority or edit global routing rules. Real generation requires `--submit`; ordinary generation commands default to read-only validation. Legacy `--via sealseek` remains optional for compatibility.
 

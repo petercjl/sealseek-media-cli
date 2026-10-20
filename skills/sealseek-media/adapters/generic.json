@@ -1,0 +1,76 @@
+{
+  "schema": "portable-skill-adapter",
+  "schema_version": "1.0.0",
+  "platform": "generic",
+  "mappings": [
+    {
+      "capability_id": "media.generate",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media",
+        "discovery": "PATH; version; doctor --live; capabilities --live"
+      },
+      "status": "implemented",
+      "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
+      "normalization": "CLI JSON: ok, task_id, status, artifacts, urls, errors. Cost can be unknown.",
+      "evidence": [],
+      "features": [
+        "host-configured-routing",
+        "image",
+        "video",
+        "reference-image",
+        "dry-run",
+        "task-record",
+        "local-artifact",
+        "automatic-video-reference-review",
+        "conversation-canvas"
+      ]
+    },
+    {
+      "capability_id": "command.execute",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media",
+        "discovery": "PATH; version; doctor --live; capabilities --live"
+      },
+      "status": "implemented",
+      "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
+      "normalization": "CLI JSON: ok, task_id, status, artifacts, urls, errors. Cost can be unknown.",
+      "evidence": [],
+      "features": [
+        "node-runtime",
+        "structured-output"
+      ]
+    },
+    {
+      "capability_id": "media.authenticate",
+      "implementation": {
+        "type": "cli",
+        "command": "sealseek-media auth",
+        "discovery": "auth login/status/logout; user opens returned loopback webpage"
+      },
+      "status": "implemented",
+      "features": [
+        "web-login",
+        "expiry-status",
+        "private-credentials",
+        "logout-backup"
+      ],
+      "evidence": [],
+      "normalization": "Login status and source/expiry metadata; credentials never returned to the Agent."
+    }
+  ],
+  "operating_systems": {
+    "macos": "implemented",
+    "windows": "implemented"
+  },
+  "invocation_policy": "host-configured",
+  "host_policy": "User configures provider priority in their Agent. Package installation preserves those routing rules.",
+  "host_requirements": [
+    "Node.js >=22",
+    "Execute sealseek-media through advertised host tools",
+    "Parse CLI JSON and deliver local files",
+    "Resolve the current host Skill directory for installation"
+  ],
+  "evidence_scope": "Portable CLI contract; no claim that an unnamed host has been runtime-tested."
+}

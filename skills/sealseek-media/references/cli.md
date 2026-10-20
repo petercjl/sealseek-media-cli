@@ -27,7 +27,7 @@ Image count is 1–4. Resolution, ratio, duration and reference limits vary by m
 
 `artifacts list --type image|video --page 1 --limit 10 --json` is read-only recovery. Match provider history to the actual request before claiming a result. Matching submissions reuse saved tasks, including failed/uncertain tasks. `--new` represents a human-requested additional attempt.
 
-`skill source --json` returns the bundled source. `skill install/status/update --agent codex|workbuddy|sealseek --json` manages copies and hashes. Unknown targets and unmanaged directories are refused. Edited copies require review before `--force`; updates create backups and preserve UI metadata.
+`skill source --json` returns the bundled source. `skill install/status/update --agent codex|workbuddy|sealseek --json` manages copies and hashes. Other valid Agent names (or `generic`) use the bundled generic adapter and require `--path` pointing to the current host’s own Skill directory. Omitting `--agent` with `--path` selects generic. Malformed names, missing generic paths and unmanaged directories are refused. Use the same custom path with `skill status` and `skill update` after a package update; custom paths are not automatically scanned or synchronized. Preserve the canonical Skill instead of creating a host-specific local fork. Edited copies require review before `--force`; updates create backups and preserve UI metadata.
 
 `update check --json` checks stable registry availability. `update install --yes --json` updates packaged installations via npm and synchronizes known managed default Skill locations. Git checkouts stay Git-managed. Custom paths require explicit `skill update --path`. Updates do not edit Agent global routing rules.
 

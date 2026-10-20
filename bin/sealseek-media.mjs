@@ -11,7 +11,7 @@ import {listFolders,changeCanvasFile,folderId} from '../src/canvas-files.mjs';
 import {createProject,renameProject} from '../src/projects.mjs';
 import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases,archiveMedia,appendMedia,applyCanvasBatch,batchCanvas,placeCanvas} from '../src/boards.mjs';
 import {archiveOptions,validatePlacement} from '../src/placement.mjs';
-import { SOURCE, status, install } from '../src/skills.mjs';
+import { SOURCE, INSTALLATION, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
 import { latestVersion,performUpdate,updateStatus,setAutomatic } from '../src/update.mjs';
@@ -82,6 +82,8 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   artifacts list [--type image|video] [--page N] [--limit N] --json
   skill source --json
   skill status|install|update --agent codex|workbuddy|sealseek [--path DIR] --json
+  skill status|install|update [--agent generic|AGENT_NAME] --path DIR --json
+    Other Agents use the generic adapter and their own resolved Skill path.
   update check --json
   update install --yes --json
   update auto status|on|off --json
@@ -253,7 +255,7 @@ async function main(argv) {
   }
   if (command==='skill') {
     const {options,args}=parse(rest,['json','agent','path','force']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if (action==='source') return out({ok:true,source:SOURCE,name:'sealseek-media',version:META.version});
+    if (action==='source') return out({ok:true,source:SOURCE,name:'sealseek-media',version:META.version,installation:INSTALLATION});
     if (action==='status') return out(await status(options.agent,options.path));
     if (['install','update'].includes(action)) return out(await install(options.agent,options));
   }

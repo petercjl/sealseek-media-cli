@@ -36,7 +36,7 @@ test('install ownership, host routing, edits, backups, locked updates, metadata 
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-install-test-')),target=path.join(dir,'skill');
  const previous=process.env.SEALSEEK_MEDIA_STATE_DIR;process.env.SEALSEEK_MEDIA_STATE_DIR=path.join(dir,'state');
  try{
-  await assert.rejects(status('unknown',target),{code:'UNKNOWN_TARGET'});
+  await assert.rejects(status('unknown'),{code:'TARGET_PATH_REQUIRED'});
   await fs.mkdir(target);await fs.writeFile(path.join(target,'user.md'),'user-owned');
   await assert.rejects(install('workbuddy',{path:target}),{code:'UNMANAGED_TARGET'});
   await fs.rm(target,{recursive:true});
