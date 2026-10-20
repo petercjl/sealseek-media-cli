@@ -70,7 +70,7 @@ Submission saves both the local task UUID and provider task ID before polling. `
 Explicit pixel size is rejected: a real native request for 1024x1536 returned 2048x2048. Use catalog ratio/resolution choices and inspect actual output. Camera controls and inpainting masks are not exposed by this CLI. Read-only estimates and catalog validation do not prove provider execution. Provider task records identify the selected model but do not independently attest the served model.
 
 
-Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`), GPT Image 2.5 Flare (`gpt-image-2.5-flare`) and Nano Banana 2.1 (`nano-banana2.1`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image and Nano Banana 2.1 edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
+Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`), GPT Image 2.5 Flare (`gpt-image-2.5-flare`), Nano Banana 2.1 (`nano-banana2.1`) and GPT Image 2.0 (`gpt-image-2`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image and Nano Banana 2.1 edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
 
 ## Nano Banana 2.1 usage
 
@@ -164,3 +164,9 @@ SealSeek Media can create projects and rename existing projects. Project names s
 > 用 SealSeek Media 把“新品素材”项目重命名为“秋季新品”。
 
 See the bundled [project contract](skills/sealseek-media/references/cli.md#project-management) for the Agent's invocation and recovery rules.
+
+### GPT Image 2.0
+
+GPT Image 2.0 is available as the explicitly selected `gpt-image-2` model. It supports text-to-image, reference images and reference editing. The catalog declares 1K/2K/4K, up to 16 references and 1–4 outputs; query current capabilities before submitting. The default image model remains GPT Image 2.5 Sunburst.
+
+> 用 SealSeek Media 的 GPT Image 2.0 生成一张白色陶瓷杯图片，1:1，1K。

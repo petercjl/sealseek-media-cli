@@ -61,7 +61,7 @@ test('advanced video options keep model-specific limits and never override basic
 });
 
 test('allowlist blocks stale requests and hostile catalogs before any remote mutation',async()=>{
- const removed=['gpt-image-2','nano-banana2','nano-banana2-lite','seedream-5-0','seedream-5-0-lite','doubao-seedance-2-0-fast','doubao-seedance-2-0-mini','wan3.0-video','minimax-h3','kling-v3','kling-v3-omni','happyhorse-t2v','happyhorse-i2v','happyhorse-r2v'];
+ const removed=['nano-banana2','nano-banana2-lite','seedream-5-0','seedream-5-0-lite','doubao-seedance-2-0-fast','doubao-seedance-2-0-mini','wan3.0-video','minimax-h3','kling-v3','kling-v3-omni','happyhorse-t2v','happyhorse-i2v','happyhorse-r2v'];
  for(const model of removed){assert.throws(()=>validateModel('image',{model}),{code:'MODEL_UNAVAILABLE'});await assert.rejects(generate({tools:[]},'image',{model,prompt:'blocked'},1000),{code:'MODEL_UNAVAILABLE'});}
  const injected={...CATALOG,models:[...CATALOG.models,{...CATALOG.models[0],id:'unapproved-new-model'}]};
  assert(!toolsFor(injected)[0].inputSchema.properties.model.enum.includes('unapproved-new-model'));

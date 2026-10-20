@@ -38,7 +38,7 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   if(req.url.includes('/canvas/detail/')){send({id:'fixture-canvas',content:canvasContent});return;}
   if(req.url.endsWith('/canvas/save')){canvasContent=input.content;send(true);return;}
   if(req.url.endsWith('/canvas/create')){send({id:'fixture-canvas'});return;}
-  if(req.url.endsWith('/canvas/tasks/generate')){generations++;send({taskId:input.prompt==='reject'?'rejected-task':'fixture-task'});return;}
+  if(req.url.endsWith('/canvas/tasks/generate')){if(input.prompt==='gpt2 approved'){assert.equal(input.model,'gpt-image-2');assert.equal(input.imageParams.model,'gpt-image-2');}generations++;send({taskId:input.prompt==='reject'?'rejected-task':'fixture-task'});return;}
   if(req.url.endsWith('/canvas/tasks/rejected-task')){send({status:'failed',errorMessage:'参数配置不符合任务类型约束：比例必须为 adaptive。token=private-fixture-secret'});return;}
   if(req.url.endsWith('/canvas/tasks/fixture-task')){send({status:'done',images:[`http://127.0.0.1:${port}/asset.png`]});return;}
   res.writeHead(404);res.end(JSON.stringify({code:404}));
@@ -56,12 +56,14 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   const explicitEdit=await cli(['image','edit','--image',file,'--model','gpt-image-2.5-flare','--prompt','adjust lighting','--dry-run']);assert.equal(explicitEdit.model,'gpt-image-2.5-flare');
   const nanoEdit=await cli(['image','edit','--image',file,'--model','nano-banana-pro','--prompt','adjust lighting','--dry-run']);assert.equal(nanoEdit.model,'nano-banana-pro');assert.equal(nanoEdit.operation,'quick-edit');
   await assert.rejects(cli(['image','replace-text','--image',file,'--old-text','a','--new-text','b','--dry-run']),e=>{const v=JSON.parse(e.stdout);assert.equal(v.error.code,'FEATURE_UNSUPPORTED');assert.equal(v.error.details.selected_model,'gpt-image-2.5-sunburst');assert.equal(v.error.details.automatic_model_switch,false);return true;});assert.equal(generations,0);assert.equal(uploads,0);
+  const gpt2=await cli(['image','generate','--model','gpt-image-2','--prompt','test','--ratio','3:4','--resolution','4K','--reference',file,'--dry-run']);assert.equal(gpt2.arguments.model,'gpt-image-2');assert.equal(gpt2.arguments.aspect_ratio,'3:4');
+  const gpt2Edit=await cli(['image','edit','--model','gpt-image-2','--image',file,'--prompt','adjust lighting','--dry-run']);assert.equal(gpt2Edit.model,'gpt-image-2');assert.equal(gpt2Edit.operation,'reference-edit');
   const nano21=await cli(['image','generate','--model','nano-banana2.1','--prompt','wide scene','--ratio','8:1','--resolution','4K','--reference',file,'--dry-run']);assert.equal(nano21.arguments.model,'nano-banana2.1');assert.equal(nano21.arguments.aspect_ratio,'8:1');
   const nano21Edit=await cli(['image','edit','--image',file,'--model','nano-banana2.1','--prompt','adjust lighting','--dry-run']);assert.equal(nano21Edit.model,'nano-banana2.1');assert.equal(nano21Edit.operation,'reference-edit');
   await assert.rejects(cli(['image','replace-text','--image',file,'--model','nano-banana2.1','--old-text','a','--new-text','b','--dry-run']),e=>JSON.parse(e.stdout).error.code==='FEATURE_UNSUPPORTED');assert.equal(generations,0);assert.equal(uploads,0);
   const defaultVideo=await cli(['video','generate','--prompt','default video','--dry-run']);assert.equal(defaultVideo.arguments.model,'doubao-seedance-2-5');
   await assert.rejects(cli(['video','generate','--prompt','use exact first and last frames','--first',file,'--last',file,'--submit']),e=>{const v=JSON.parse(e.stdout);assert.equal(v.error.code,'FEATURE_UNSUPPORTED');assert.equal(v.error.details.model,'doubao-seedance-2-5');assert.equal(v.error.details.rejected_flag,'--first');assert.equal(v.error.details.paid_action,false);return true;});assert.equal(generations,0);assert.equal(uploads,0);assert.equal(canvasContent,'{}');
-  await assert.rejects(cli(['image','generate','--model','gpt-image-2','--prompt','blocked','--reference',file,'--submit']));assert.equal(generations,0);assert.equal(uploads,0);
+  await assert.rejects(cli(['image','generate','--model','nano-banana2','--prompt','blocked','--reference',file,'--submit']));assert.equal(generations,0);assert.equal(uploads,0);
 
   await assert.rejects(cli([...base,'--submit','--dry-run']));assert.equal(generations,0);
   const job=await cli([...base,'--submit']);assert.equal(job.status,'queued');
@@ -88,6 +90,9 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   let elements=JSON.parse(canvasContent).elements;const importedElement=elements.at(-1);assert.equal(importedElement.x,123);assert.equal(importedElement.y,456);assert.equal(importedElement.width,200);
   assert.equal((await cli(['canvas','add','fixture-canvas','--media',mediaFile,'--submit'])).added,0);assert.equal(JSON.parse(canvasContent).elements.length,elements.length);
   const arranged=await cli(['canvas','arrange','fixture-canvas','--submit']);assert.equal(arranged.layout.mode,'grid');assert.equal(generations,3);
+  const gpt2Job=await cli(['image','generate','--model','gpt-image-2','--prompt','gpt2 approved','--submit','--output',path.join(dir,'gpt2')]);
+  const gpt2Done=await cli(['task','wait',gpt2Job.task_id,'--timeout','5']);assert.equal(gpt2Done.status,'succeeded');assert.equal(gpt2Done.model,'gpt-image-2');assert.equal(gpt2Done.artifacts.length,1);assert.equal(generations,4);
+
 
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true});}
 });
