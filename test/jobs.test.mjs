@@ -13,8 +13,8 @@ test('lost worker preserves uncertainty and stored output without resubmission',
  const previous=process.env.SEALSEEK_MEDIA_STATE_DIR;process.env.SEALSEEK_MEDIA_STATE_DIR=dir;
  try {
   for(const [id,result] of [['11111111-1111-4111-8111-111111111111',null],['22222222-2222-4222-8222-222222222222',{urls:['https://example.com/video.mp4'],count:1}]]) {
-   await createJson(jobPath(id),{owner:META.name,id,status:result?'generated':'running',pid:2147483647,started_at:new Date(Date.now()-60000).toISOString(),request:{kind:'video',args:{model:'test'}},result});
-   const value=summary(await getJob(id));assert.equal(value.status,result?'download_failed':'uncertain');assert.equal(value.ok,false);assert.equal(value.actual_model,null);
+   await createJson(jobPath(id),{owner:META.name,id,status:result?'generated':'running',phase:'waiting_remote',pid:2147483647,started_at:new Date(Date.now()-60000).toISOString(),request:{kind:'video',args:{model:'test'}},result});
+   const value=summary(await getJob(id));assert.equal(value.status,result?'download_failed':'uncertain');assert.equal(value.phase,value.status);assert.equal(value.ok,false);assert.equal(value.actual_model,null);
    if(result)assert.deepEqual(value.urls,result.urls);
   }
   const exec=promisify(execFile);

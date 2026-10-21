@@ -46,7 +46,7 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
     [--first-person present|absent] [--last-person present|absent]
     [--video-reference FILE_OR_URL ...] [--audio-reference FILE_OR_URL]
     [--audio true|false] [--video-options JSON_FILE]
-    [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
+    [--prompt-file FILE] [--output DIR] [--timeout SECONDS (default 1800)]
     [--dry-run | --submit] [--new] --json
     Video has one output per request; --count is image-only.
     Exact pixel size is not verified; use catalog ratio/resolution choices.

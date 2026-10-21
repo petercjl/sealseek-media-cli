@@ -6,6 +6,7 @@ import {archiveOptions} from './placement.mjs';
 import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
 import {assetUri,resolveVideoReference,validateReferencePeople,REVIEW_POLICY} from './asset-review.mjs';
+import {mapLimited} from './concurrency.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
 export async function reference(value,kind='image') {
@@ -129,12 +130,28 @@ export async function execute(connection, request, timeout) {
   const args = { ...request.args };
   // Validate all inputs first, including older saved jobs, before any upload/review.
   if(request.kind==='video')validateReferencePeople(request.refs,request.first,request.last);
-  const resolve=async(ref,role,index=0)=>request.kind==='video'?resolveVideoReference(connection,ref,{upload,role,index}):upload(connection,ref);
-  if (request.refs.length){args.reference_images=[];for(const [i,ref] of request.refs.entries())args.reference_images.push(await resolve(ref,'reference',i));}
-  if (request.first) args.first_frame_image = await resolve(request.first,'first');
-  if (request.last) args.last_frame_image = await resolve(request.last,'last');
-  if(request.videoRefs?.length)args.reference_videos=await Promise.all(request.videoRefs.map(r=>upload(connection,r)));
-  if(request.audioRef)args.reference_audio=await upload(connection,request.audioRef);
+  await connection.onStage?.('references_started');
+  // Identical review identities run serially, allowing the existing private
+  // review cache to be reused without concurrent duplicate registrations.
+  const identities=new Map();
+  const inputs=[...request.refs.map((ref,index)=>({ref,role:'reference',index})),...(request.first?[{ref:request.first,role:'first'}]:[]),...(request.last?[{ref:request.last,role:'last'}]:[]),...(request.videoRefs||[]).map((ref,index)=>({ref,role:'video',index})),...(request.audioRef?[{ref:request.audioRef,role:'audio'}]:[])];
+  const groups=[];
+  for(const input of inputs){const key=hash({reference:input.ref.digest||input.ref.url,person:input.ref.person,role:['video','audio'].includes(input.role)?input.role:'image'});let group=identities.get(key);if(!group){group=[];identities.set(key,group);groups.push(group);}group.push(input);}
+  const resolved=await mapLimited(groups,async group=>{
+    const results=[];
+    for(const input of group){const {ref,role,index=0}=input;const url=request.kind==='video'&&!['video','audio'].includes(role)?await resolveVideoReference(connection,ref,{upload,role,index}):await upload(connection,ref);results.push({...input,url});}
+    return results;
+  });
+  if(request.refs.length)args.reference_images=new Array(request.refs.length);
+  if(request.videoRefs?.length)args.reference_videos=new Array(request.videoRefs.length);
+  for(const {role,index,url} of resolved.flat()){
+    if(role==='reference')args.reference_images[index]=url;
+    else if(role==='first')args.first_frame_image=url;
+    else if(role==='last')args.last_frame_image=url;
+    else if(role==='video')args.reference_videos[index]=url;
+    else args.reference_audio=url;
+  }
+  await connection.onStage?.('references_completed');
   connection.operation=request.operation;connection.editParams=request.edit_params;
   await connection.onPreparedArguments?.(args);
   const values = await call(connection, request.tool, args, timeout);

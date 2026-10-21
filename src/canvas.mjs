@@ -58,9 +58,10 @@ export async function pollTask(cfg,id,{timeout=900000,interval=5000,onProgress}=
     try{data=await request(cfg,'/canvas/tasks/'+encodeURIComponent(id),{timeout:Math.max(1,Math.min(20000,end-Date.now()))});}
     catch(e){if(e.code==='AUTH_REJECTED')throw e;lastError=e;await new Promise(r=>setTimeout(r,Math.min(interval,Math.max(0,end-Date.now()))));continue;}
     const status=String(data?.status||'').toLowerCase();
+    await onProgress?.({status:['pending','queued','running','processing','done','success','succeeded','failed','not_found','cancelled','canceled'].includes(status)?status:'unknown'});
     if(['done','success','succeeded'].includes(status))return data;
     requireValue(!['failed','not_found','cancelled','canceled'].includes(status),'PROVIDER_FAILURE','Infinite Canvas task failed.',{provider_text:sanitizeProviderText(data.errorMessage||status),provider_code:data.errorCode,remote_task_id:id,retry_automatically:false});
-    await onProgress?.(data);await new Promise(r=>setTimeout(r,Math.min(interval,Math.max(0,end-Date.now()))));
+    await new Promise(r=>setTimeout(r,Math.min(interval,Math.max(0,end-Date.now()))));
   }
   throw new MediaError('SUBMISSION_UNCERTAIN','The saved Infinite Canvas task is still unresolved. Resume this task; do not submit again.',{remote_task_id:id,...(lastError?{last_error:lastError.code}:{}),retry_automatically:false});
 }
@@ -76,7 +77,7 @@ export async function generate(connection,kind,args,timeout) {
   if(editing)validateNativeInput(editing==='quick-edit'?'QuickEditRunParam':'EditTextParam',input);
   const result=await request(connection.cfg,route,{method:'POST',data:input,submission:true});
   const id=taskId(result);await connection.onSubmitted?.({remote_task_id:id,...context});
-  return pollTask(connection.cfg,id,{timeout});
+  return pollTask(connection.cfg,id,{timeout,onProgress:connection.onProgress});
 }
 export async function call(connection,name,args,timeout=900000) {
   if(name.startsWith('generate_'))return [await generate(connection,name.slice(9),args,timeout)];

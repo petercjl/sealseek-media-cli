@@ -42,7 +42,11 @@
         "canvas_id",
         "canvas_url",
         "canvas_saved",
-        "canvas_sync_error"
+        "canvas_sync_error",
+        "phase",
+        "remote_status",
+        "tracking_timeout_seconds",
+        "timing"
       ],
       "side_effects": {
         "authorization": "Generation is authorized by the user request; provider routing is configured in the calling Agent.",

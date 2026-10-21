@@ -25,16 +25,16 @@ test('schema mismatch rejects rather than dropping requested fields',async()=>{
 });
 test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication and file protection',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sealseek-media-test-'));
- let generations=0,uploads=0,port,canvasContent='{}';
+ let generations=0,uploads=0,catalogs=0,accounts=0,port,canvasContent='{}';
  const server=http.createServer(async(req,res)=>{
-  if(req.method==='GET' && req.url==='/api/sealseek-infinitecanvas/api/generation-models'){const {CATALOG}=await import('../src/models.mjs');res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({code:200,data:{image:CATALOG.models.filter(m=>m.type==='image'),video:CATALOG.models.filter(m=>m.type==='video')}}));return;}
+  if(req.method==='GET' && req.url==='/api/sealseek-infinitecanvas/api/generation-models'){catalogs++;const {CATALOG}=await import('../src/models.mjs');res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({code:200,data:{image:CATALOG.models.filter(m=>m.type==='image'),video:CATALOG.models.filter(m=>m.type==='video')}}));return;}
   if(req.method==='GET' && req.url==='/asset.png'){res.writeHead(200,{'Content-Type':'image/png'});res.end(png);return;}
   res.setHeader('Content-Type','application/json');
   const send=data=>res.end(JSON.stringify({code:200,data}));
   let raw='';for await(const part of req)raw+=part;
   if(req.url.endsWith('/common/upload')){uploads++;send(`http://127.0.0.1:${port}/asset.png`);return;}
   const input=raw?JSON.parse(raw):{};
-  if(req.url.endsWith('/api/user/user/info')){send({userUuid:'fixture-user'});return;}
+  if(req.url.endsWith('/api/user/user/info')){accounts++;send({userUuid:'fixture-user'});return;}
   if(req.url.includes('/canvas/detail/')){send({id:'fixture-canvas',content:canvasContent});return;}
   if(req.url.endsWith('/canvas/save')){canvasContent=input.content;send(true);return;}
   if(req.url.endsWith('/canvas/create')){send({id:'fixture-canvas'});return;}
@@ -66,9 +66,9 @@ test('real CLI transport: dry-run, opt-in, upload, worker output, deduplication 
   await assert.rejects(cli(['image','generate','--model','nano-banana2','--prompt','blocked','--reference',file,'--submit']));assert.equal(generations,0);assert.equal(uploads,0);
 
   await assert.rejects(cli([...base,'--submit','--dry-run']));assert.equal(generations,0);
-  const job=await cli([...base,'--submit']);assert.equal(job.status,'queued');
+  const beforeCatalogs=catalogs,beforeAccounts=accounts;const job=await cli([...base,'--submit']);assert.equal(job.status,'queued');
   let done;for(let i=0;i<30;i++){done=await cli(['task','get',job.task_id]);if(done.status==='succeeded')break;await new Promise(r=>setTimeout(r,100));}
-  assert.equal(done.status,'succeeded');assert.equal(generations,1);assert.equal(uploads,1);assert.equal(done.artifacts[0].size,png.length);
+  assert.equal(catalogs-beforeCatalogs,2);assert.equal(accounts-beforeAccounts,2);assert.equal(done.tracking_timeout_seconds,1800);assert.equal(done.remote_status,'done');assert.equal(done.phase,'succeeded');assert(done.timing.durations_ms.preparation>=0);assert(done.timing.durations_ms.remote_wait>=0);assert(done.timing.durations_ms.finalization>=0);assert.equal(done.status,'succeeded');assert.equal(generations,1);assert.equal(uploads,1);assert.equal(done.artifacts[0].size,png.length);
   const permissions=(await fs.stat(path.join(dir,'state/jobs',`${job.task_id}.json`))).mode&0o777;if(process.platform!=='win32')assert.equal(permissions,0o600);
   const legacyPath=path.join(dir,'state/jobs',`${job.task_id}.json`),legacy=await readJson(legacyPath);delete legacy.request.archive;delete legacy.request.placement;await fs.writeFile(legacyPath,JSON.stringify(legacy));
   const duplicate=await cli([...base,'--submit','--via','sealseek']);assert.equal(duplicate.task_id,job.task_id);assert.equal(duplicate.deduplicated,true);assert.equal(generations,1);

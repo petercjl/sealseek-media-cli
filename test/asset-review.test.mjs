@@ -68,7 +68,7 @@ test('mixed video references review only people, preserving ordinary product/sce
   assert.equal(o.calls.length,0);const events=[];c.onReferenceReview=r=>events.push(r);await execute(c,req,1000);
   assert.deepEqual(o.calls.filter(v=>v.route.endsWith('/auto-review')).map(v=>v.data.url),[refs[1]]);
   assert.deepEqual(o.calls.find(v=>v.route.endsWith('/tasks/generate')).data.videoParams.referenceImages,[refs[0],active.assetUri,refs[2]]);
-  assert.deepEqual(events.map(v=>v.status),['Skipped','Active','Skipped']);
+  assert.deepEqual(events.sort((a,b)=>a.index-b.index).map(v=>v.status),['Skipped','Active','Skipped']);
  });}finally{if(previous===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=previous;await fs.rm(state,{recursive:true,force:true});}
 });
 

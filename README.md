@@ -172,3 +172,9 @@ See the bundled [project contract](skills/sealseek-media/references/cli.md#proje
 GPT Image 2.0 is available as the explicitly selected `gpt-image-2` model. It supports text-to-image, reference images and reference editing. The catalog declares 1K/2K/4K, up to 16 references and 1–4 outputs; query current capabilities before submitting. The default image model remains GPT Image 2.5 Sunburst.
 
 > 用 SealSeek Media 的 GPT Image 2.0 生成一张白色陶瓷杯图片，1:1，1K。
+
+## Generation preparation and timing
+
+The submission path reads the live model catalog during validation and again in the worker; canvas selection only loads credentials. Account identity is checked again before worker uploads. Reference preparation uses at most two concurrent operations and keeps input ordering. Duplicate review identities are processed serially through the private review cache. Preparation failure drains started operations and prevents generation. Image generation never calls asset review; video reference review follows the explicit person classifications.
+
+Background task tracking defaults to 30 minutes; generation `--timeout` accepts 10–3600 seconds. Individual `task wait` calls remain bounded to 1–60 seconds. `task get/wait/diagnose` exposes `phase`, `remote_status`, `tracking_timeout_seconds`, and client-observed `timing` timestamps/durations. Preparation starts when the local task is created, remote wait includes polling/network/recovery gaps, and finalization includes archival/download. Historical unknown phase durations are null. Resume preserves the remote ID and original submission timing. Client timings do not prove provider queue or computation time.

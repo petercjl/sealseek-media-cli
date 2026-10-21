@@ -220,3 +220,11 @@ Rename saves and verifies a private metadata backup before POST `/canvas/folder/
 ## GPT Image 2.0
 
 `gpt-image-2` is an explicitly selected image alternative. `models show gpt-image-2 --live --json` discovers current parameters. `image generate --model gpt-image-2 --prompt TEXT --ratio 1:1 --resolution 1K --count 1 --dry-run --json` validates without generation; add `--via sealseek --submit` instead of `--dry-run` for an authorized request. Reference generation and `image edit --model gpt-image-2` use the same lifecycle; quick-edit and dedicated text replacement retain their existing model restrictions. Retain the returned task ID for polling, recovery, download and canvas archival.
+
+## Task timing and bounded reference preparation
+
+Generation `--timeout` is the remote tracking budget, 10–3600 seconds, default 1800. `task wait --timeout` remains an individual local wait of 1–60 seconds. Reference materials are prepared with at most two concurrent operations and original reference ordering is retained. Matching review identities are serialized so the existing private review cache can be reused. All started operations settle before a preparation error is finalized; generation starts only after all required references are ready.
+
+`task get/wait/diagnose` includes `phase`, `remote_status`, `tracking_timeout_seconds` and `timing`. `timing.timestamps` preserves submission and observed remote completion across resume; `durations_ms` exposes `preparation`, `references`, `remote_wait`, `finalization`, and `total`. Preparation starts at local job creation, after foreground validation/canvas selection. Remote wait is observed by the client and includes polling delay, network time and recovery gaps. Total ends at the latest worker completion, including interrupted attempts. These fields do not identify provider queue/compute durations. Old records retain null unknown phase durations.
+
+For Agent entry, one successful `capabilities --live --json` provides version, authentication verification, catalog and transport tools together. Separate `version` and `doctor --live` calls are unnecessary for the same unchanged request; doctor remains the troubleshooting entry. Read the selected model contract as documented in the main Skill.
