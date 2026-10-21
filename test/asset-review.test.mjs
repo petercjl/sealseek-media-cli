@@ -49,11 +49,20 @@ test('approved URI input is checked; changed local file cannot reuse a cached re
 test('video preflight reviews first and last frames before one generation; image generation stays unchanged',async()=>{
  const previous=process.env.SEALSEEK_MEDIA_STATE_DIR;const state=await fs.mkdtemp(path.join(os.tmpdir(),'media-execute-'));process.env.SEALSEEK_MEDIA_STATE_DIR=state;
  try{
-  await fixture(call=>call.route.endsWith('/auto-review')||call.route.endsWith('/ark/status')?active:call.route.endsWith('/canvas/create')?{id:'canvas'}:call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/result.mp4'],images:['https://example.com/result.png']},async(c,o)=>{c.canvasId='canvas';
+  await fixture(async call=>{
+   if(call.route.endsWith('/auto-review')||call.route.endsWith('/ark/status')){
+    const id=call.data.assetId||(call.data.url.includes('first')?'asset-first':'asset-last');
+    // Complete the last frame first: network completion order must not change
+    // the frame roles passed to generation.
+    if(id==='asset-first')await new Promise(r=>setTimeout(r,30));
+    return {...active,assetId:id,assetUri:'asset://'+id};
+   }
+   return call.route.endsWith('/canvas/create')?{id:'canvas'}:call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/result.mp4'],images:['https://example.com/result.png']};
+  },async(c,o)=>{c.canvasId='canvas';
    const req=await prepare('video',{model:'doubao-seedance-2-0',prompt:'test',duration:5,first:'https://example.com/first.png',last:'https://example.com/last.png','first-person':'present','last-person':'present'},c.tools,CATALOG);
    assert.equal(o.calls.length,0,'dry-run preparation must not review or upload');assert(req.reference_review.automatic);
    const reviews=[];c.onReferenceReview=v=>reviews.push(v);await execute(c,req,1000);
-   const submitted=o.calls.find(v=>v.route.endsWith('/tasks/generate'));assert.equal(submitted.data.firstFrameImage,active.assetUri);assert.equal(submitted.data.lastFrameImage,active.assetUri);assert.deepEqual(reviews.map(v=>v.role),['first','last']);assert.equal(o.calls.filter(v=>v.route.endsWith('/tasks/generate')).length,1);
+   const submitted=o.calls.find(v=>v.route.endsWith('/tasks/generate'));assert.equal(submitted.data.firstFrameImage,'asset://asset-first');assert.equal(submitted.data.lastFrameImage,'asset://asset-last');assert.deepEqual(reviews.map(v=>v.role).sort(),['first','last']);assert.equal(o.calls.filter(v=>v.route.endsWith('/tasks/generate')).length,1);
    const before=o.calls.filter(v=>v.route.endsWith('/auto-review')).length;await execute(c,await prepare('image',{prompt:'test',reference:['https://example.com/image.png']},c.tools,CATALOG),1000);assert.equal(o.calls.filter(v=>v.route.endsWith('/auto-review')).length,before);
   });
   await fixture(()=>({status:'Failed',reason:'multiple faces',compliant:false}),async(c,o)=>{await assert.rejects(execute(c,await prepare('video',{prompt:'test',reference:['https://example.com/bad.png'],'reference-person':['present']},c.tools,CATALOG),1000),{code:'ASSET_REVIEW_FAILED'});assert.equal(o.calls.length,1);});
