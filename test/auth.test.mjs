@@ -5,6 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import { META,createJson } from '../src/core.mjs';
 import { saveToken,logout,localAuthStatus,tokenMetadata,authFile } from '../src/auth.mjs';
 import { desktopConfig,authenticatedFetch } from '../src/service.mjs';
@@ -104,4 +106,23 @@ for(const channel of ['SEALSEEK','PLUGIN'])test(`SMS ${channel} login sends the 
 test('PLUGIN QR and unknown login channels fail before creating a login session',async()=>{
  await assert.rejects(startLogin({channel:'plugin',method:'wechat'}),{code:'FEATURE_UNSUPPORTED'});
  await assert.rejects(startLogin({channel:'other'}),{code:'INVALID_INPUT'});
+});
+
+test('closing login while successful verification finishes cannot rearm a process-retaining timer',async()=>{
+ const source=`
+ import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import http from 'node:http';import crypto from 'node:crypto';
+ import {META,createJson} from ${JSON.stringify(new URL('../src/core.mjs',import.meta.url).href)};
+ import {serveLogin,loginPath,loginStatus} from ${JSON.stringify(new URL('../src/auth-web.mjs',import.meta.url).href)};
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'login-close-race-'));process.env.SEALSEEK_MEDIA_STATE_DIR=dir;
+ const mock=http.createServer(async(req,res)=>{for await(const part of req){}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code:200,data:{token:'fixture'}}));});await new Promise(r=>mock.listen(0,'127.0.0.1',r));
+ let handle,closed=false;
+ try{
+  const id=crypto.randomUUID();await createJson(loginPath(id),{owner:META.name,id,status:'starting',login_channel:'PLUGIN',login_preference:'sms'});
+  handle=await serveLogin(id,{base:'http://127.0.0.1:'+mock.address().port,verify:async()=>{},save:async()=>{handle.close();closed=true;return {};}});
+  const session=await loginStatus(id),origin=new URL(session.login_url).origin;
+  const response=await fetch(session.login_url+'/sms/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({phone:'13800000000',code:'123456'})});
+  if(response.status!==200)throw Error('Fixture login failed');await response.text();
+ }finally{if(!closed)handle?.close();handle?.server.closeAllConnections();mock.closeAllConnections();await new Promise(r=>mock.close(r));await fs.rm(dir,{recursive:true,force:true});}
+ `;
+ await promisify(execFile)(process.execPath,['--input-type=module','--eval',source],{timeout:10000,env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'}});
 });

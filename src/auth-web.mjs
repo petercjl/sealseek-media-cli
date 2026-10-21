@@ -26,9 +26,9 @@ export async function serveLogin(id,{base=PROVIDER,verify,save=saveToken,interva
  const p=loginPath(id),job=await readJson(p);requireValue(job.owner===META.name&&job.status==='starting','UNMANAGED_STATE','Expected an unstarted managed login session.');
  const channel=job.login_channel||'SEALSEEK';
  requireValue(['SEALSEEK','PLUGIN'].includes(channel)&&!(channel==='PLUGIN'&&job.login_preference!=='sms'),'INVALID_INPUT','Unsupported login channel or method.');
- const secret=crypto.randomBytes(24).toString('hex');let server,timer,expiry,inFlight=false,params;
+ const secret=crypto.randomBytes(24).toString('hex');let server,timer,expiry,inFlight=false,closed=false,params;
  const commit=async()=>replaceJob(p,job);
- const finish=async(status,error)=>{clearInterval(timer);clearTimeout(expiry);job.status=status;if(error)job.error=publicError(error);await commit();expiry=setTimeout(()=>server?.close(),1800000);};
+ const finish=async(status,error)=>{clearInterval(timer);clearTimeout(expiry);job.status=status;if(error)job.error=publicError(error);await commit();if(!closed)expiry=setTimeout(()=>server?.close(),1800000);};
  try{
   if(job.login_preference!=='sms')params=await qrParams(base,job.device_type||'CLIENT');
   server=http.createServer(async(req,res)=>{
@@ -68,13 +68,13 @@ export async function serveLogin(id,{base=PROVIDER,verify,save=saveToken,interva
   });
   await new Promise((r,j)=>{server.once('error',j);server.listen(0,'127.0.0.1',r);});
   job.status='pending';job.login_url='http://127.0.0.1:'+server.address().port+'/'+secret;job.expires_at=new Date(Date.now()+lifetime).toISOString();job.pid=process.pid;await commit();
-  const check=async()=>{if(!params||inFlight||job.status!=='pending')return;inFlight=true;try{
+  const check=async()=>{if(closed||!params||inFlight||job.status!=='pending')return;inFlight=true;try{
    const v=await providerJson('/api/user/login/wxLoginStatus?ticket='+encodeURIComponent(params.ticket),base);
-   if(job.status!=='pending')return;
+   if(closed||job.status!=='pending')return;
    if(v.status==='success'){job.status='verifying';await commit();requireValue(typeof v.token==='string','LOGIN_CONTRACT_FAILED','The provider returned no login token.');await verify(v.token);requireValue(job.status==='verifying','LOGIN_EXPIRED','Login session expired during verification.');const saved=await save(v.token,{channel,deviceType:job.device_type||'CLIENT',method:'wechat'});job.login_method='wechat';job.credential_file=saved.credential_file;job.token_expires_at=saved.expires_at;await finish('succeeded');}
    else if(v.status==='expired')await finish('expired');else if(v.status==='noRelated')await finish('binding_required');else requireValue(v.status==='pending','LOGIN_CONTRACT_FAILED','Unexpected provider login status.');
   }catch(e){await finish('failed',e);}finally{inFlight=false;}};
   timer=setInterval(check,interval);expiry=setTimeout(()=>{void finish('expired');},lifetime);await check();
  }catch(e){job.status='failed';job.error=publicError(e);await commit();server?.close();}
- return {server,job,close:()=>{clearInterval(timer);clearTimeout(expiry);server?.close();}};
+ return {server,job,close:()=>{closed=true;clearInterval(timer);clearTimeout(expiry);server?.close();}};
 }
