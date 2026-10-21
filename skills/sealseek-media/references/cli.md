@@ -52,7 +52,7 @@ For authorized generation, replace `--dry-run` with `--via sealseek --submit` an
 Read `models show ID --live --json` or `video guide --model ID --live --json` before choosing reference mode. `--reference` supplies appearance/content guidance; `--first` and `--last` express exact frame constraints. Seedance 2.5 supports image references, with first/last-frame inputs unsupported in the current model catalog. If the fixed default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for the human to name a supported model or adjust the requirement. The CLI reports unsupported parameters with allowed values before upload/submission.
 ```bash
 sealseek-media video guide --model doubao-seedance-2-5 --json
-sealseek-media video generate --model doubao-seedance-2-5 --prompt "Follow the reference image; gentle camera push-in" --reference ./reference.png --ratio 9:16 --resolution 480p --duration 4 --dry-run --json
+sealseek-media video generate --model doubao-seedance-2-5 --prompt "Follow the reference image; gentle camera push-in" --reference ./reference.png --reference-person absent --ratio 9:16 --resolution 480p --duration 4 --dry-run --json
 sealseek-media task diagnose TASK_UUID --json
 sealseek-media task inspect TASK_UUID --json
 ```
@@ -107,11 +107,15 @@ Fix the default or human-selected model before composing parameters. A human req
 
 ## Automatic video reference review
 
-Users continue to pass `--reference`, `--first` and `--last` normally. For both Seedance models, the worker sends image inputs through the Infinite Canvas combined person/multiple-face detection and automatic asset review. There is no separate face-detection decision for the Agent. Review succeeds only at `Active` with a usable asset identity; the video payload uses `asset://<assetId>`. Text-only video and image generation do not use this preflight. Existing approved asset URIs may also be supplied as video image inputs and are checked against the provider.
+For both Seedance models, the caller visually inspects each video image reference and supplies `--reference-person present|absent` once per `--reference`, in matching order. Supply `--first-person present|absent` and `--last-person present|absent` for supported frame inputs. `present` means any visible person, including partial/background/stylized people and people depicted on packaging or screens. `absent` means a product or scene image with no visible person. The host must provide image-viewing capability; uncertainty or unavailable inspection stops for resolution. The service exposes no standalone person-detection contract.
+
+Only `present` images are registered through automatic asset review and converted to `asset://<assetId>` after `Active`. `absent` images are uploaded normally when local, then sent as ordinary image URLs without asset review. Already-approved asset URI inputs are status-checked and reused. Missing classifications return `REFERENCE_CLASSIFICATION_REQUIRED` before upload/review/generation; malformed values or mismatched counts return `INVALID_INPUT`. Older unsubmitted jobs without classifications also stop before upload or review. Dry-run includes `reference_people` for inspection and performs no upload/review.
+
+Image generation and all image-edit paths, including portrait references, never call asset-review endpoints or perform person classification. Local reference upload for generation remains necessary. Text-only video and video/audio references do not enter image asset review. Provider-internal generation moderation is separate from this CLI preflight.
 
 Private cached review results are scoped to the service and current authentication, keyed by local content hash or URL, and rechecked before reuse. This avoids uploading and registering the same unchanged local image again. Local contents are rehashed even on cache hits. The provider may impose a material-library quota; the CLI reports it and preserves existing assets.
 
-`task get/wait/diagnose` includes `reference_reviews` with role, index, review status and asset identity. Diagnostics retain the actual submitted arguments. `Processing` falls back to bounded status polling; failed review, invalid response, unresolved submission or review timeout stops before video generation. Errors include `ASSET_REVIEW_FAILED`, `ASSET_REVIEW_INVALID_RESPONSE`, `ASSET_REVIEW_UNCERTAIN` and `ASSET_REVIEW_PENDING`. The worker neither bypasses rejection with raw references nor repeats video generation. Dry-run advertises `reference_review` but performs no upload or audit.
+`task get/wait/diagnose` includes `reference_reviews` with role, index, review status and asset identity. Non-person references record `Skipped` with `person: absent` and `reason: no-person`. Diagnostics retain the actual submitted arguments. `Processing` falls back to bounded status polling; failed review, invalid response, unresolved submission or review timeout stops before video generation. Errors include `ASSET_REVIEW_FAILED`, `ASSET_REVIEW_INVALID_RESPONSE`, `ASSET_REVIEW_UNCERTAIN` and `ASSET_REVIEW_PENDING`. The worker neither bypasses rejection with raw references nor repeats video generation. Dry-run advertises `reference_review` but performs no upload or audit.
 
 ## Canvas operations and placement
 

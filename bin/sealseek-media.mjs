@@ -40,8 +40,10 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
     [--prompt-file FILE] [--output DIR] [--dry-run | --submit] [--new] --json
   video guide [--model ID] --json       (reference modes, model constraints, workflow)
   video generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
+    [--reference-person present|absent ...] (one per image reference after visual inspection)
     [--ratio RATIO] [--resolution VALUE] [--duration SECONDS]
     [--first FILE_OR_URL] [--last FILE_OR_URL]
+    [--first-person present|absent] [--last-person present|absent]
     [--video-reference FILE_OR_URL ...] [--audio-reference FILE_OR_URL]
     [--audio true|false] [--video-options JSON_FILE]
     [--prompt-file FILE] [--output DIR] [--timeout SECONDS]
@@ -221,10 +223,10 @@ async function main(argv) {
     return out(await submit(prepared,options));
   }
   if (['image','video'].includes(command) && action === 'generate') {
-    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','canvas','session','timeout','dry-run','via','submit','new','placement','archive'],['reference','video-reference']);
+    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','reference-person','first-person','last-person','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','canvas','session','timeout','dry-run','via','submit','new','placement','archive'],['reference','reference-person','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,canvas_id:request.canvas_id,canvas_session:request.canvas_session,archive:request.archive,placement:request.placement,canvas_policy:request.canvas_id?'explicit':request.canvas_session?'conversation':'account-default',kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
+    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,canvas_id:request.canvas_id,canvas_session:request.canvas_session,archive:request.archive,placement:request.placement,canvas_policy:request.canvas_id?'explicit':request.canvas_session?'conversation':'account-default',kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review,reference_people:{references:request.refs.map(r=>r.person||(r.asset?'approved-asset':null)),first:request.first?.person||null,last:request.last?.person||null}}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
     return out(await submit(request,options));
   }
   if (['image','video'].includes(command) && action==='upload') {

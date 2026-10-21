@@ -21,7 +21,7 @@
         "dry-run",
         "task-record",
         "local-artifact",
-        "automatic-video-reference-review",
+        "conditional-person-video-reference-review",
         "conversation-canvas"
       ],
       "input_fields": [
@@ -30,7 +30,8 @@
         "model",
         "references",
         "parameters",
-        "authorization"
+        "authorization",
+        "reference_person_classifications"
       ],
       "output_fields": [
         "task_id",
@@ -60,7 +61,8 @@
         "ASSET_REVIEW_FAILED",
         "ASSET_REVIEW_INVALID_RESPONSE",
         "ASSET_REVIEW_UNCERTAIN",
-        "ASSET_REVIEW_PENDING"
+        "ASSET_REVIEW_PENDING",
+        "REFERENCE_CLASSIFICATION_REQUIRED"
       ]
     },
     {

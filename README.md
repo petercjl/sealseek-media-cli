@@ -94,7 +94,7 @@ The CLI's `image edit` uses reference-image generation for this model. Dedicated
 
 ## Automatic video reference preparation
 
-Pass ordinary reference images with `--reference` (or supported first/last-frame inputs). Before submitting a Seedance video, the CLI automatically uploads local images, invokes Infinite Canvas person/multiple-face detection and asset review, waits for approval, and uses the approved material URI. No extra command or user parameter is required. Unchanged references reuse privately cached, provider-verified materials. Review failure stops generation and is shown in task diagnostics. Dry-run does not upload or review.
+For Seedance videos, the Agent visually inspects every image reference and supplies one `--reference-person present|absent` per `--reference` in matching order, plus `--first-person` / `--last-person` for supported frame inputs. Only images containing people are sent to asset review and converted to approved material URIs. Product and scene images without people use ordinary image URLs directly. Missing classification stops before upload or review. Approved asset URIs and unchanged person references reuse provider-verified materials. Review failure stops generation. Dry-run uploads and reviews nothing. Image generation and image editing, including portrait inputs, upload references only for generation and never invoke asset review. This covers CLI preflight; provider-internal generation moderation is separate.
 
 ## Canvas operations and placement
 

@@ -5,7 +5,7 @@ import { toolFor, validateArguments, call,request,API,authenticatedFetch,generat
 import {archiveOptions} from './placement.mjs';
 import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
-import {assetUri,reviewReference,REVIEW_POLICY} from './asset-review.mjs';
+import {assetUri,resolveVideoReference,validateReferencePeople,REVIEW_POLICY} from './asset-review.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
 export async function reference(value,kind='image') {
@@ -73,6 +73,8 @@ export async function prepare(kind, options, tools, catalog) {
   if(options.audio!==undefined){requireValue(['true','false'].includes(options.audio),'INVALID_INPUT','Audio must be true or false.');args.generate_audio=options.audio==='true';}
   const tool = toolFor(tools, `generate_${kind}`); validateArguments(tool, args);
   generationPayload(kind,args,{canvasId:'dry-run',traceId:'dry-run'});
+  if(kind==='video')validateReferencePeople(refs,first,last,options);
+  else requireValue(['reference-person','first-person','last-person'].every(k=>options[k]===undefined),'FEATURE_UNSUPPORTED','Person classification applies to video only; image generation and editing do not submit asset reviews.');
 
   options={...options,session:options.session||process.env.SEALSEEK_MEDIA_SESSION_ID||process.env.CODEX_THREAD_ID};
   requireValue(!options.session||typeof options.session==='string'&&options.session.length<=200,'INVALID_INPUT','Session ID must be 1-200 characters.');
@@ -125,7 +127,9 @@ export async function execute(connection, request, timeout) {
   assertModelAllowed(request.args.model,request.kind);
   connection.canvasId=request.canvas_id||connection.canvasId;
   const args = { ...request.args };
-  const resolve=async(ref,role,index=0)=>request.kind==='video'?reviewReference(connection,ref,{upload,role,index}):upload(connection,ref);
+  // Validate all inputs first, including older saved jobs, before any upload/review.
+  if(request.kind==='video')validateReferencePeople(request.refs,request.first,request.last);
+  const resolve=async(ref,role,index=0)=>request.kind==='video'?resolveVideoReference(connection,ref,{upload,role,index}):upload(connection,ref);
   if (request.refs.length){args.reference_images=[];for(const [i,ref] of request.refs.entries())args.reference_images.push(await resolve(ref,'reference',i));}
   if (request.first) args.first_frame_image = await resolve(request.first,'first');
   if (request.last) args.last_frame_image = await resolve(request.last,'last');

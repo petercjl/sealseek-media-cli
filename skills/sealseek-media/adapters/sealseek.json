@@ -22,7 +22,7 @@
         "dry-run",
         "task-record",
         "local-artifact",
-        "automatic-video-reference-review",
+        "conditional-person-video-reference-review",
         "conversation-canvas"
       ]
     },

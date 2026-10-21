@@ -3,8 +3,32 @@ import path from 'node:path';
 import {META,stateRoot,hash,readJson,createJson,replaceJob,requireValue,MediaError} from './core.mjs';
 import {request,validateNativeInput,sanitizeProviderText} from './canvas.mjs';
 
-export const REVIEW_POLICY={automatic:true,scope:'video-image-references-and-first-last-frames',detection:'provider-combined-detection-and-review',dry_run_performs_review:false,failed_review_blocks_generation:true};
+export const REVIEW_POLICY={automatic:true,scope:'person-containing-video-image-references-and-first-last-frames',detection:'caller-visual-inspection',classification_required:true,non_person_reference:'ordinary-url',image_generation_review:false,dry_run_performs_review:false,failed_review_blocks_generation:true};
 export function assetUri(value){return typeof value==='string'&&/^asset:\/\/[A-Za-z0-9_-]+$/.test(value);}
+
+// Classification belongs to the caller's visual inspection. The provider has
+// no documented standalone person detector; auto-review registers an asset.
+export function validateReferencePeople(refs,first,last,options) {
+  const values=options?.['reference-person'];
+  requireValue(values===undefined||Array.isArray(values)&&values.length===refs.length,'INVALID_INPUT','Provide one --reference-person present|absent per --reference, in matching order.');
+  for(const [key,ref] of [['first-person',first],['last-person',last]])
+    requireValue(options?.[key]===undefined||!!ref,'INVALID_INPUT',`--${key} requires its frame input.`);
+  for(const [i,ref] of refs.entries())if(values?.[i]!==undefined)ref.person=values[i];
+  if(first&&options?.['first-person']!==undefined)first.person=options['first-person'];
+  if(last&&options?.['last-person']!==undefined)last.person=options['last-person'];
+  for(const ref of [...refs,first,last].filter(Boolean)) {
+    requireValue(ref.person===undefined||['present','absent'].includes(ref.person),'INVALID_INPUT','Person classification must be present or absent.');
+    requireValue(assetUri(ref.url)||['present','absent'].includes(ref.person),'REFERENCE_CLASSIFICATION_REQUIRED','Inspect every video image reference and mark person present or absent before submission.',{generation_submitted:false,review_submitted:false});
+  }
+}
+
+export async function resolveVideoReference(connection,ref,{upload,role,index=0}={}) {
+  validateReferencePeople([ref],null,null);
+  if(assetUri(ref.url)||ref.person==='present')return reviewReference(connection,ref,{upload,role,index});
+  const url=await upload(connection,ref);
+  await connection.onReferenceReview?.({role,index,status:'Skipped',person:'absent',reason:'no-person',cached:false});
+  return url;
+}
 
 // Cache is private, scoped to the service and current credentials, and rechecked
 // with the provider before reuse. Reference contents never go into the package.
