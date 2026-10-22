@@ -77,7 +77,7 @@ Pricing is read-only and does not generate; the provider may price unsupported c
 
 All service operations use Infinite Canvas REST; no MCP client is used. `task resume TASK_UUID --json` resumes polling of a saved remote task after a worker/authentication interruption. It never replays generation. A task with saved output URLs uses `task download` instead.
 
-Video accepts repeated `--video-reference` (MP4/MOV/WebM), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and model-specific `--video-options`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
+Video accepts repeated `--video-reference` (local MP4/MOV/WebM, HTTPS video URL, or approved `asset://` video URI), `--audio-reference` (Seedance 2 series; MP3/WAV/M4A), `--audio true|false`, and model-specific `--video-options`. Reference uploads are locally limited to 200 MiB for video/audio and 30 MiB for images; provider model constraints still apply. Model catalog declaration and CLI support do not guarantee every combination.
 
 ```bash
 sealseek-media image edit --image ./photo.png --prompt "Change the background to pale blue; preserve the subject" --output ./edited --dry-run --json
@@ -87,6 +87,8 @@ sealseek-media image replace-text --image ./poster.png --old-text HELLO --new-te
 
 Text detection is OCR, with no selectable generation model. `image edit` defaults to GPT Image 2.5 Sunburst through reference-image generation and preserves an explicit human model selection. Only an explicit `--model nano-banana-pro` selects the dedicated quick-edit endpoint. Dedicated `image replace-text` supports `nano-banana-pro`; omitting `--model` keeps the default image model and returns `FEATURE_UNSUPPORTED` before network calls. Use reference-image generation for text changes with the default model. Optional text boxes use normalized coordinates between 0 and 1. Editing submits once and follows the returned task ID. Camera-control and inpainting-mask inputs remain unavailable.
 
+Video reference files and URLs are uploaded as needed, reviewed with `assetType: Video`, and submitted as approved asset URIs. An explicit approved video URI only calls status verification. The account-scoped cache separates video and image reviews; every reuse verifies provider status. A rejected or unresolved video review stops generation without falling back to its ordinary URL. This video-file rule is independent of image person classification: non-person images still use ordinary URLs, and image generation never invokes asset review.
+
 ## Advanced video parameters
 
 Use `--video-options ./video-options.json` for an optional JSON object. Basic model, ratio, resolution, duration, references and audio remain CLI flags; the JSON cannot override them. These fields follow the official OpenAPI and model rules; advanced combinations are provider-declared unless `observed_runtime` records a matching real success.
@@ -94,8 +96,10 @@ Use `--video-options ./video-options.json` for an optional JSON object. Basic mo
 | Model | Allowed additional fields | Validation |
 |---|---|---|
 | All video models | `motionIntensity`, `style` | Strings; no undocumented preset values are invented |
-| Seedance 2.5 | `omniReferenceTaskType`, `outputFormat` | `reference/edit/extend/auto`; `mp4/mov` |
+| Seedance 2.5 | `omniReferenceTaskType` | `reference/edit/extend/auto` |
 | Seedance 2.0 | `videoWebSearch` | Boolean; true requires text-only input |
+
+`outputFormat` is incompatible with the current video-generation endpoint and is rejected before upload, review or generation, including saved unsubmitted requests. Video output format follows the provider default.
 
 Multi-audio references and image reference role/description fields are not exposed by this CLI. Local video references accept MP4/MOV/WebM; local audio accepts MP3/WAV/M4A; each is limited to 200 MiB. Do not replace an unsupported request with direct API experiments. Report the missing parameter or propose a compatible choice for the user.
 

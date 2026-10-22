@@ -5,12 +5,12 @@ import { toolFor, validateArguments, call,request,API,authenticatedFetch,generat
 import {archiveOptions} from './placement.mjs';
 import {MODEL_POLICY,assertModelAllowed} from './model-policy.mjs';
 import { validateModel } from './models.mjs';
-import {assetUri,resolveVideoReference,validateReferencePeople,REVIEW_POLICY} from './asset-review.mjs';
+import {assetUri,resolveVideoReference,reviewReference,validateReferencePeople,REVIEW_POLICY} from './asset-review.mjs';
 import {mapLimited} from './concurrency.mjs';
 
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' };
 export async function reference(value,kind='image') {
-  if(assetUri(value)){requireValue(kind==='image','FEATURE_UNSUPPORTED','Asset URI inputs are supported for video image references.');return {url:value,asset:true};}
+  if(assetUri(value)){requireValue(['image','video'].includes(kind),'FEATURE_UNSUPPORTED','Asset URI inputs are supported for video image and video references.');return {url:value,asset:true};}
   if (/^https?:\/\//i.test(value)) return { url: secureUrl(value).href };
   const file = path.resolve(value), stat = await fs.stat(file).catch(() => null);
   requireValue(stat?.isFile() && stat.size > 0 && stat.size <= (kind==='image'?30:200) * 1024 * 1024, 'INVALID_REFERENCE', 'Reference file is missing, empty, or exceeds the local upload limit.');
@@ -22,13 +22,12 @@ export async function reference(value,kind='image') {
   return { file, mime, digest: hash(bytes), size: stat.size };
 }
 export function validateVideoOptions(extra,options,duration) {
-  const common=['motionIntensity','style'],seed25=['omniReferenceTaskType','outputFormat'],seed20=['videoWebSearch'];
+  const common=['motionIntensity','style'],seed25=['omniReferenceTaskType'],seed20=['videoWebSearch'];
   const allowed=[...common,...(options.model==='doubao-seedance-2-5'?seed25:[]),...(/^doubao-seedance-2-0/.test(options.model)?seed20:[])];
   requireValue(extra&&typeof extra==='object'&&!Array.isArray(extra),'INVALID_INPUT','Video options must be a JSON object.');
   requireValue(Object.keys(extra).every(k=>allowed.includes(k)),'FEATURE_UNSUPPORTED','Video options include unsupported fields for this model.',{allowed_fields:allowed});
   validateNativeInput('VideoParams',extra);
   requireValue(!extra.omniReferenceTaskType||['reference','edit','extend','auto'].includes(extra.omniReferenceTaskType),'FEATURE_UNSUPPORTED','Invalid Seedance 2.5 task mode.');
-  requireValue(!extra.outputFormat||['mp4','mov'].includes(extra.outputFormat),'FEATURE_UNSUPPORTED','Output format must be mp4 or mov.');
   requireValue(!extra.videoWebSearch||!((options.reference||[]).length||(options['video-reference']||[]).length||options.first||options.last||options['audio-reference']),'FEATURE_UNSUPPORTED','Web search enhancement requires text-only input.');
   return extra;
 }
@@ -129,7 +128,10 @@ export async function execute(connection, request, timeout) {
   connection.canvasId=request.canvas_id||connection.canvasId;
   const args = { ...request.args };
   // Validate all inputs first, including older saved jobs, before any upload/review.
-  if(request.kind==='video')validateReferencePeople(request.refs,request.first,request.last);
+  if(request.kind==='video'){
+    generationPayload('video',args,{canvasId:'preflight',traceId:'preflight'});
+    validateReferencePeople(request.refs,request.first,request.last);
+  }
   await connection.onStage?.('references_started');
   // Identical review identities run serially, allowing the existing private
   // review cache to be reused without concurrent duplicate registrations.
@@ -139,7 +141,7 @@ export async function execute(connection, request, timeout) {
   for(const input of inputs){const key=hash({reference:input.ref.digest||input.ref.url,person:input.ref.person,role:['video','audio'].includes(input.role)?input.role:'image'});let group=identities.get(key);if(!group){group=[];identities.set(key,group);groups.push(group);}group.push(input);}
   const resolved=await mapLimited(groups,async group=>{
     const results=[];
-    for(const input of group){const {ref,role,index=0}=input;const url=request.kind==='video'&&!['video','audio'].includes(role)?await resolveVideoReference(connection,ref,{upload,role,index}):await upload(connection,ref);results.push({...input,url});}
+    for(const input of group){const {ref,role,index=0}=input;const url=request.kind==='video'&&role==='video'?await reviewReference(connection,ref,{upload,role,index}):request.kind==='video'&&role!=='audio'?await resolveVideoReference(connection,ref,{upload,role,index}):await upload(connection,ref);results.push({...input,url});}
     return results;
   });
   if(request.refs.length)args.reference_images=new Array(request.refs.length);

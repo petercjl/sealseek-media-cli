@@ -129,3 +129,53 @@ test('local non-person video and portrait image references upload for generation
   await fs.writeFile(file,'changed');const before=o.calls.length;await assert.rejects(execute(c,req,1000),{code:'REFERENCE_CHANGED'});assert.equal(o.calls.length,before);
  });
 });
+
+
+async function withVideoReviewState(fn){
+ const previous=process.env.SEALSEEK_MEDIA_STATE_DIR,dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-video-review-'));
+ process.env.SEALSEEK_MEDIA_STATE_DIR=dir;
+ try{await fn();}finally{if(previous===undefined)delete process.env.SEALSEEK_MEDIA_STATE_DIR;else process.env.SEALSEEK_MEDIA_STATE_DIR=previous;await fs.rm(dir,{recursive:true,force:true});}
+}
+
+test('video URL references are reviewed as Video before generation; product images stay ordinary URLs',async()=>{
+ await withVideoReviewState(async()=>fixture(call=>{
+  if(call.route.endsWith('/auto-review')){assert.equal(call.data.assetType,'Video');return active;}
+  return call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/out.mp4']};
+ },async(c,o)=>{
+  c.canvasId='canvas';const req=await prepare('video',{prompt:'test',reference:['https://example.com/product.png'],'reference-person':['absent'],'video-reference':['https://example.com/input.mp4']},c.tools,CATALOG);
+  assert.equal(o.calls.length,0);const reviews=[];c.onReferenceReview=r=>reviews.push(r);await execute(c,req,1000);
+  const sent=o.calls.find(v=>v.route.endsWith('/tasks/generate'));
+  assert.deepEqual(sent.data.videoParams.referenceVideos,[active.assetUri]);assert.deepEqual(sent.data.images,['https://example.com/product.png']);
+  assert.equal(o.calls.filter(v=>v.route.endsWith('/auto-review')).length,1);assert(reviews.some(r=>r.role==='video'&&r.status==='Active'));
+  assert.equal(o.calls.filter(v=>v.route.endsWith('/tasks/generate')).length,1);
+ }));
+});
+
+test('approved video asset URI is status-checked and reused without upload or registration',async()=>{
+ await withVideoReviewState(async()=>fixture(call=>{
+  assert(!call.route.endsWith('/common/upload'));assert(!call.route.endsWith('/auto-review'));
+  if(call.route.endsWith('/ark/status')){assert.equal(call.data.assetId,'asset-test');return active;}
+  return call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/out.mp4']};
+ },async(c,o)=>{
+  c.canvasId='canvas';await execute(c,await prepare('video',{prompt:'test','video-reference':[active.assetUri]},c.tools,CATALOG),1000);
+  assert.equal(o.calls.filter(v=>v.route.endsWith('/ark/status')).length,1);
+  assert.deepEqual(o.calls.find(v=>v.route.endsWith('/tasks/generate')).data.videoParams.referenceVideos,[active.assetUri]);
+  await assert.rejects(prepare('video',{prompt:'test','audio-reference':active.assetUri},c.tools,CATALOG),{code:'FEATURE_UNSUPPORTED'});
+ }));
+});
+
+test('video review rejection blocks generation with no raw video fallback',async()=>{
+ await withVideoReviewState(async()=>fixture(call=>call.route.endsWith('/auto-review')?{status:'Failed',compliant:false,reason:'Rejected video'}:call.route.endsWith('/tasks/generate')?{taskId:'remote'}:{status:'done',videos:['https://example.com/out.mp4']},async(c,o)=>{
+  c.canvasId='canvas';await assert.rejects(execute(c,await prepare('video',{prompt:'test','video-reference':['https://example.com/rejected.mp4']},c.tools,CATALOG),1000),e=>e.code==='ASSET_REVIEW_FAILED'&&e.details.role==='video');
+  assert.equal(o.calls.filter(v=>v.route.endsWith('/tasks/generate')).length,0);
+ }));
+});
+
+test('image and video reviews have distinct cache identities; video cache is revalidated',async()=>{
+ await fixture(call=>active,async(c,o)=>{
+  const ref={url:'https://example.com/shared'},opts={...o,upload:async()=>ref.url};
+  await reviewReference(c,ref,{...opts,role:'reference'});await reviewReference(c,ref,{...opts,role:'video'});await reviewReference(c,ref,{...opts,role:'video'});
+  assert.deepEqual(o.calls.filter(v=>v.route.endsWith('/auto-review')).map(v=>v.data.assetType),['Image','Video']);
+  assert.equal(o.calls.filter(v=>v.route.endsWith('/ark/status')).length,1);
+ });
+});

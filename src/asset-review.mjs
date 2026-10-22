@@ -3,7 +3,7 @@ import path from 'node:path';
 import {META,stateRoot,hash,readJson,createJson,replaceJob,requireValue,MediaError} from './core.mjs';
 import {request,validateNativeInput,sanitizeProviderText} from './canvas.mjs';
 
-export const REVIEW_POLICY={automatic:true,scope:'person-containing-video-image-references-and-first-last-frames',detection:'caller-visual-inspection',classification_required:true,non_person_reference:'ordinary-url',image_generation_review:false,dry_run_performs_review:false,failed_review_blocks_generation:true};
+export const REVIEW_POLICY={automatic:true,scope:'person-containing-video-image-references-and-first-last-frames',video_reference_review:true,detection:'caller-visual-inspection',classification_required:true,non_person_reference:'ordinary-url',image_generation_review:false,dry_run_performs_review:false,failed_review_blocks_generation:true};
 export function assetUri(value){return typeof value==='string'&&/^asset:\/\/[A-Za-z0-9_-]+$/.test(value);}
 
 // Classification belongs to the caller's visual inspection. The provider has
@@ -33,8 +33,9 @@ export async function resolveVideoReference(connection,ref,{upload,role,index=0}
 // Cache is private, scoped to the service and current credentials, and rechecked
 // with the provider before reuse. Reference contents never go into the package.
 export async function reviewReference(connection,ref,{upload,role='reference',index=0,timeout=180000,interval=3000,cacheDirectory=path.join(stateRoot(),'asset-reviews')}={}){
+  const assetType=role==='video'?'Video':'Image';
   if(ref.file)requireValue(hash(await fs.readFile(ref.file))===ref.digest,'REFERENCE_CHANGED','A reference changed after validation. Prepare a new request.');
-  const key=hash({origin:connection.cfg.url.origin,credentials:Object.entries(connection.cfg.headers).sort(([a],[b])=>a.localeCompare(b)),reference:ref.digest||ref.url});
+  const key=hash({origin:connection.cfg.url.origin,credentials:Object.entries(connection.cfg.headers).sort(([a],[b])=>a.localeCompare(b)),reference:ref.digest||ref.url,...(assetType==='Video'?{assetType}:{})});
   const p=path.join(cacheDirectory,key+'.json');
   let saved;
   try{saved=await readJson(p);}catch(e){if(e.code!=='ENOENT')throw new MediaError('ASSET_REVIEW_STATE_INVALID','Stored reference review cannot be read.');}
@@ -47,7 +48,7 @@ export async function reviewReference(connection,ref,{upload,role='reference',in
   else if(assetUri(ref.url))result=await request(connection.cfg,'/canvas/ark/status',{method:'POST',data:{assetId:ref.url.slice(8)}});
   else{
     const url=await upload(connection,ref);
-    const data={url,assetType:'Image',name:'Video reference'};
+    const data={url,assetType,name:'Video reference'};
     validateNativeInput('AssetValidateParam',data);
     try{result=await request(connection.cfg,'/canvas/ark/auto-review',{method:'POST',data,timeout:Math.min(70000,timeout),submission:true});}
     catch(e){if(e.code==='SUBMISSION_UNCERTAIN')throw new MediaError('ASSET_REVIEW_UNCERTAIN','Reference review response is unresolved; video generation was not submitted.',{generation_submitted:false,retry_automatically:false});throw e;}

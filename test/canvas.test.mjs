@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {generationPayload,generate,pollTask,request,toolsFor,validateNativeInput} from '../src/canvas.mjs';
-import {CATALOG,validateModel} from '../src/models.mjs';
-import {generationResult,validateVideoOptions} from '../src/media.mjs';
+import {CATALOG,validateModel,modelContract} from '../src/models.mjs';
+import {generationResult,validateVideoOptions,execute,prepare} from '../src/media.mjs';
 
 test('native payload preserves reference modes, explicit false audio and quality settings',()=>{
  const args={model:'doubao-seedance-2-0',prompt:'test',aspect_ratio:'1:1',resolution:'720p',duration:4,first_frame_image:'first',last_frame_image:'last',generate_audio:false};
@@ -56,8 +56,8 @@ test('advanced video options keep model-specific limits and never override basic
  assert.throws(()=>validateVideoOptions({model:'other'},{model:'doubao-seedance-2-5'},4),{code:'FEATURE_UNSUPPORTED'});
  assert.throws(()=>validateVideoOptions({videoWebSearch:true},{model:'doubao-seedance-2-0',reference:['image']},4),{code:'FEATURE_UNSUPPORTED'});
  assert.throws(()=>validateVideoOptions({multiShot:true},{model:'doubao-seedance-2-5'},5),{code:'FEATURE_UNSUPPORTED'});
- const extra=validateVideoOptions({omniReferenceTaskType:'reference',outputFormat:'mov'},{model:'doubao-seedance-2-5'},5);
- const p=generationPayload('video',{model:'doubao-seedance-2-5',prompt:'test',duration:5,video_options:extra},{canvasId:'canvas',traceId:'trace'});assert.equal(p.videoParams.outputFormat,'mov');assert.equal(p.videoParams.omniReferenceTaskType,'reference');
+ const extra=validateVideoOptions({omniReferenceTaskType:'reference'},{model:'doubao-seedance-2-5'},5);
+ const p=generationPayload('video',{model:'doubao-seedance-2-5',prompt:'test',duration:5,video_options:extra},{canvasId:'canvas',traceId:'trace'});assert(!Object.hasOwn(p.videoParams,'outputFormat'));assert.equal(p.videoParams.omniReferenceTaskType,'reference');
 });
 
 test('allowlist blocks stale requests and hostile catalogs before any remote mutation',async()=>{
@@ -65,4 +65,25 @@ test('allowlist blocks stale requests and hostile catalogs before any remote mut
  for(const model of removed){assert.throws(()=>validateModel('image',{model}),{code:'MODEL_UNAVAILABLE'});await assert.rejects(generate({tools:[]},'image',{model,prompt:'blocked'},1000),{code:'MODEL_UNAVAILABLE'});}
  const injected={...CATALOG,models:[...CATALOG.models,{...CATALOG.models[0],id:'unapproved-new-model'}]};
  assert(!toolsFor(injected)[0].inputSchema.properties.model.enum.includes('unapproved-new-model'));
+});
+
+
+test('incompatible outputFormat is rejected before reference IO, review or generation',async()=>{
+ const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+ const {tmpdir}=await import('node:os');
+ const {join}=await import('node:path');
+ const dir=await mkdtemp(join(tmpdir(),'sealseek-format-'));
+ try{
+  for(const outputFormat of ['mp4','mov']){
+   const extra={omniReferenceTaskType:'edit',outputFormat};
+   assert.throws(()=>validateVideoOptions(extra,{model:'doubao-seedance-2-5'},4),{code:'FEATURE_UNSUPPORTED'});
+   assert.throws(()=>generationPayload('video',{model:'doubao-seedance-2-5',prompt:'test',duration:4,video_options:extra},{canvasId:'canvas',traceId:'trace'}),{code:'FEATURE_UNSUPPORTED'});
+   const file=join(dir,outputFormat+'.json');await writeFile(file,JSON.stringify(extra),{flag:'wx'});
+   await assert.rejects(prepare('video',{prompt:'test',model:'doubao-seedance-2-5','video-options':file,reference:[join(dir,'missing.png')]},toolsFor(CATALOG),CATALOG),{code:'FEATURE_UNSUPPORTED'});
+   let stages=0;
+   await assert.rejects(execute({onStage:()=>{stages++;}}, {kind:'video',args:{model:'doubao-seedance-2-5',prompt:'test',duration:4,video_options:extra},refs:[{url:'https://example.com/product.png',person:'absent'}],videoRefs:[]},100),{code:'FEATURE_UNSUPPORTED'});
+   assert.equal(stages,0,'saved requests must stop before reference processing');
+  }
+  assert(!Object.hasOwn(modelContract('doubao-seedance-2-5').input_rules.advanced_video_options.seedance_2_5,'outputFormat'));
+ }finally{await rm(dir,{recursive:true,force:true});}
 });

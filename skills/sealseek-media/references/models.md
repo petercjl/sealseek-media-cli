@@ -36,7 +36,7 @@ Seedance 2.5 支持图片参考，当前目录不支持首尾帧。Seedance 2.0 
 
 ## 高级参数与图片操作
 
-`--video-options JSON_FILE`：通用字段 `motionIntensity`、`style`；Seedance 2.5 支持 `omniReferenceTaskType`（reference/edit/extend/auto）及 `outputFormat`（mp4/mov）；Seedance 2.0 支持 `videoWebSearch`，开启时要求纯文本输入。详见 [CLI contract](cli.md#advanced-video-parameters)。高级组合按官方声明接入，未实测组合明确标记。
+`--video-options JSON_FILE`：通用字段 `motionIntensity`、`style`；Seedance 2.5 支持 `omniReferenceTaskType`（reference/edit/extend/auto）；Seedance 2.0 支持 `videoWebSearch`，开启时要求纯文本输入。`outputFormat` 与当前生视频接口不兼容，会在上传、审核和提交前拒绝；输出格式采用服务端默认值。详见 [CLI contract](cli.md#advanced-video-parameters)。高级组合按官方声明接入，未实测组合明确标记。
 
 `image edit` 使用默认或用户指定的生图模型：GPT Image 与 Nano Banana 2.1 模型走参考图生成，用户明确指定 Nano Banana Pro 时走专用快速编辑。专用 `image replace-text` 仅支持 Nano Banana Pro，省略模型时保持默认模型并返回不支持错误；使用默认模型修改文字时可走参考图生成。`image detect-text` 为独立 OCR 文字检测，没有可选择的生图模型；替换可使用检测返回的 0–1 归一化坐标。镜头控制、局部重绘蒙版、多音频参考及图片参考角色字段尚未封装。
 

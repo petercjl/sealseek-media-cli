@@ -114,11 +114,6 @@
           "description": "任务模式（Seedance 2.5）：reference / edit / extend / auto",
           "example": "reference"
         },
-        "outputFormat": {
-          "type": "string",
-          "description": "输出格式（Seedance 2.5）：mp4 / mov",
-          "example": "mp4"
-        },
         "generateAudio": {
           "type": "boolean",
           "description": "是否生成音频（Seedance 1.5 Pro；2.0 默认原生输出音频）",
