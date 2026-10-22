@@ -358,5 +358,18 @@
       "SKILL_SYNC_FAILED",
       "UPDATE_BUSY"
     ]
+  },
+  "runtime_dependencies": {
+    "ffprobe": {
+      "package": "@ffprobe-installer/ffprobe@2.1.2",
+      "required_for": [
+        "video generation preflight",
+        "task video inspection",
+        "media video inspection"
+      ],
+      "discovery": "SEALSEEK_MEDIA_FFPROBE_BIN, npm platform binary, PATH",
+      "check": "doctor --json / capabilities --json -> dependencies.ffprobe",
+      "recovery": "Install package with optional dependencies enabled; or configure a working ffprobe executable. Inspect the same task after repair."
+    }
   }
 }

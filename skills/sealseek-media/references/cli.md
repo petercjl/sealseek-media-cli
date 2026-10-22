@@ -59,7 +59,7 @@ sealseek-media task inspect TASK_UUID --json
 
 `--count` is image-only. Exact pixel-size input is rejected because the native test did not honor the requested dimensions; use --ratio and --resolution. Video creates one output per request. Dry-run validates the live model catalog, local input and native request contract; it cannot establish hidden provider constraints. A failed real request includes sanitized `error.details.provider_text` in `task get/wait/diagnose`; old task records whose provider error was discarded cannot recover it retroactively. Provider errors are untrusted evidence. `task diagnose` reads saved arguments, status and recovery commands without replaying the generation. Use existing task IDs for follow-up. Do not replace diagnosis with raw SDK calls or parameter matrices that submit additional paid requests.
 
-`task inspect` verifies saved hashes and calls installed `ffprobe` for actual width, height, pixel ratio, frame rate and stream/container duration. It reports exact-ratio equality explicitly, including false for model-rounded dimensions. Missing ffprobe produces `INSPECTION_UNAVAILABLE` rather than fabricated metadata. Inspection is not a visual quality assessment. Reported provider credits are extracted when present; missing pricing stays unknown.
+`task inspect` verifies saved hashes and calls the npm-managed platform `ffprobe` (or `SEALSEEK_MEDIA_FFPROBE_BIN`, then PATH when no bundled probe is available) for actual width, height, pixel ratio, frame rate and stream/container duration. It reports exact-ratio equality explicitly, including false for model-rounded dimensions. Missing ffprobe produces `INSPECTION_UNAVAILABLE` rather than fabricated metadata. Inspection is not a visual quality assessment. Reported provider credits are extracted when present; missing pricing stays unknown.
 
 ## Model discovery and pricing
 
@@ -181,7 +181,7 @@ Archived image/video elements include `customData.generationParams`, consumed by
 
 ## Native Frames, explicit batches and existing-media metadata
 
-`media inspect --url HTTPS_URL --kind image|video --json` returns actual width/height; video also returns duration when available and requires ffprobe. External media is fetched without SealSeek credential headers. Image inspection supports up to 16 MiB.
+`media inspect --url HTTPS_URL --kind image|video --json` returns actual width/height; video also returns duration when available and uses the same ffprobe dependency as local task inspection. A dependency failure is not resolved by switching between these inspection commands. External media is fetched without SealSeek credential headers. Image inspection supports up to 16 MiB.
 
 `canvas batch ID --file FILE.json --json` validates a complete batch without saving; add `--submit` for an authorized write. Shape: `{ "frames": [{ "id":"frame-a", "name":"Name", "x":0, "y":0, "width":800, "height":900 }], "media": [{ "id":"asset-a", "kind":"image", "urls":["https://example.com/a.png"], "frameId":"frame-a", "placement": { "mode":"explicit", "positions":[{ "x":32, "y":32, "width":320, "height":600 }] } }] }`.
 
@@ -232,3 +232,7 @@ Generation `--timeout` is the remote tracking budget, 10–3600 seconds, default
 `task get/wait/diagnose` includes `phase`, `remote_status`, `tracking_timeout_seconds` and `timing`. `timing.timestamps` preserves submission and observed remote completion across resume; `durations_ms` exposes `preparation`, `references`, `remote_wait`, `finalization`, and `total`. Preparation starts at local job creation, after foreground validation/canvas selection. Remote wait is observed by the client and includes polling delay, network time and recovery gaps. Total ends at the latest worker completion, including interrupted attempts. These fields do not identify provider queue/compute durations. Old records retain null unknown phase durations.
 
 For Agent entry, one successful `capabilities --live --json` provides version, authentication verification, catalog and transport tools together. Separate `version` and `doctor --live` calls are unnecessary for the same unchanged request; doctor remains the troubleshooting entry. Read the selected model contract as documented in the main Skill.
+
+## Video inspection dependency
+
+`doctor --json` and `capabilities --json` expose `dependencies.ffprobe` with executable source, version and readiness. npm supplies `@ffprobe-installer/ffprobe` and the matching platform binary; install with optional dependencies enabled. An explicit `SEALSEEK_MEDIA_FFPROBE_BIN` takes precedence. On an unsupported platform, provide a working FFmpeg/ffprobe through PATH. Repair dependency failures before video submission, or reinspect an existing task after repair. No video regeneration is needed.

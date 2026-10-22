@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import {ffprobeStatus} from '../src/ffprobe.mjs';
 import {MODEL_POLICY,assertModelAllowed} from '../src/model-policy.mjs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -190,10 +191,10 @@ async function main(argv) {
   }
   if (command === 'doctor' || command === 'capabilities') {
     const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const manifest=JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8'));
-    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',model_policy:MODEL_POLICY,manifest,model_catalog:CATALOG});
+    const manifest={...JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8')),...JSON.parse(await fs.readFile(path.join(ROOT,'capabilities.json'),'utf8'))};
+    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',model_policy:MODEL_POLICY,manifest,model_catalog:CATALOG,dependencies:{ffprobe:ffprobeStatus()}});
     let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
-    const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:process.platform==='darwin', ...(command==='capabilities'?{manifest}:{})};
+    const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:['darwin','win32'].includes(process.platform),dependencies:{ffprobe:ffprobeStatus()}, ...(command==='capabilities'?{manifest}:{})};
     if (options.live) return withConnection(options,async c=>{await verifyCredentials(c.cfg);return out({...result,...(command==='capabilities'?{model_catalog:c.catalog}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),transport:'SealSeek Infinite Canvas REST'});});
     return out(result);
   }
@@ -230,6 +231,7 @@ async function main(argv) {
     const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','reference-person','first-person','last-person','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','canvas','session','timeout','dry-run','via','submit','new','placement','archive'],['reference','reference-person','video-reference']);
     requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
+    if(command==='video'){const dependency=ffprobeStatus();requireValue(dependency.ok,'DEPENDENCY_UNAVAILABLE',dependency.error?.message,{dependency:'ffprobe',paid_action:false});}
     if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,canvas_id:request.canvas_id,canvas_session:request.canvas_session,archive:request.archive,placement:request.placement,canvas_policy:request.canvas_id?'explicit':request.canvas_session?'conversation':'account-default',kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review,reference_people:{references:request.refs.map(r=>r.person||(r.asset?'approved-asset':null)),first:request.first?.person||null,last:request.last?.person||null}}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
     return out(await submit(request,options));
   }

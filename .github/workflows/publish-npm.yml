@@ -46,7 +46,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci --ignore-scripts
+      - run: npm ci
       - run: npm run check
         timeout-minutes: 3
       - run: npm pack --dry-run

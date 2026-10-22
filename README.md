@@ -8,17 +8,9 @@ Authentication is available with `sealseek-media auth login --json`. The private
 
 Expiry metadata comes from the JWT; the service may revoke credentials earlier. `AUTH_REQUIRED`, `AUTH_EXPIRED` and `AUTH_REJECTED` distinguish missing/logout, local expiry and server rejection. `auth logout --yes` backs up plugin credentials and blocks desktop fallback. Add `--desktop` only when authorized to back up and remove the desktop media authentication headers. Credentials, login sessions and backups are never packed. Login is separate from authorization to generate media.
 
-Install the public npm package and its managed portable Skill:
+Ask the current Agent: “安装并配置 @petercjl/sealseek-media-cli，供你自己使用。” The Agent installs the package, resolves its own Skill directory, then completes the package-managed Skill installation. Completion requires the actual CLI version and `skill status` reporting `installed=true`, `current=true`; npm alone completes only the CLI phase. Other Agents are unchanged.
 
-```bash
-npm install -g @petercjl/sealseek-media-cli
-sealseek-media skill install --agent codex --json
-sealseek-media skill install --agent workbuddy --json
-sealseek-media doctor --live --json
-sealseek-media capabilities --live --json
-```
-
-For another Agent, let it resolve its own advertised/configured Skill directory and use `sealseek-media skill install --agent generic --path <own-skill-directory>/sealseek-media --json`. A valid host name such as `sealcraft` also selects the generic adapter when no named adapter exists. `skill source --json` publishes this installation contract. A missing generic destination returns `TARGET_PATH_REQUIRED`; the package does not guess another Agent’s directory. Use the same path with `skill status` and `skill update`; no local adapter or Skill edits are needed.
+For updates: “更新 @petercjl/sealseek-media-cli 及其配套 Skill。” The Agent uses the selected-target update interface and verifies both components. A direct npm upgrade or scripts-disabled install requires the same Skill completion handoff. `skill source --json` exposes the canonical source and target contract. Valid unnamed hosts use the generic adapter with their own resolved destination.
 
 One canonical Skill is bundled and available for normal Agent discovery. Installation does not set provider priority or edit global routing rules. Real generation requires `--submit`; ordinary generation commands default to read-only validation. Legacy `--via sealseek` remains optional for compatibility.
 
@@ -34,7 +26,7 @@ Private local task records live in current-user `.local/state/sealseek-media` or
 
 `skill source/status/install/update` manages copies, recoverable backups and hashes. `update check/install` manages packaged installations; `update install --yes --agent AGENT [--path DIR]` reconciles the selected existing managed Skill even when npm is current. Ordinary commands accept `--agent AGENT [--skill-path DIR]`, or `SEALSEEK_MEDIA_AGENT` / `SEALSEEK_MEDIA_SKILL_PATH`. Explicit flags replace environment selection. Unselected Agent directories are untouched. Git checkouts stay Git-managed. Local edits and customized metadata are preserved or backed up.
 
-Development: `npm ci --ignore-scripts`, `npm test`, `npm pack --dry-run`. macOS is the initial runtime target. Windows runtime is unverified. Publication uses a separately authorized GitHub Actions Trusted Publishing workflow.
+Development: `npm ci`, `npm test`, `npm pack --dry-run`. macOS is the initial runtime target. Windows runtime is unverified. Publication uses a separately authorized GitHub Actions Trusted Publishing workflow.
 
 ## Automatic updates
 
@@ -55,7 +47,7 @@ sealseek-media update install --yes --json
 
 Use `video guide --model ID --json` and `--reference` when an image supplies visual identity or appearance. `--first`/`--last` express exact frame constraints. Seedance 2.5 supports reference-image input and lacks first/last-frame support in the current provider catalog. If the default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for an explicit human model or parameter choice.
 
-After a failure, use `task diagnose ID --json`; sanitized provider errors are retained in task records and ordinary `get/wait` output. Diagnosis never replays generation. `task inspect ID --json` verifies local artifact hashes and obtains actual video specifications through ffprobe when installed. Native request validation does not prove provider acceptance; actual pixel dimensions may differ slightly from the requested ratio.
+After a failure, use `task diagnose ID --json`; sanitized provider errors are retained in task records and ordinary `get/wait` output. Diagnosis never replays generation. `task inspect ID --json` verifies local artifact hashes and obtains actual video specifications through the npm-managed ffprobe dependency. Native request validation does not prove provider acceptance; actual pixel dimensions may differ slightly from the requested ratio.
 
 ## Model parameters
 
@@ -178,3 +170,5 @@ GPT Image 2.0 is available as the explicitly selected `gpt-image-2` model. It su
 The submission path reads the live model catalog during validation and again in the worker; canvas selection only loads credentials. Account identity is checked again before worker uploads. Reference preparation uses at most two concurrent operations and keeps input ordering. Duplicate review identities are processed serially through the private review cache. Preparation failure drains started operations and prevents generation. Image generation never calls asset review; video image-reference review follows the explicit person classifications, while video files are reviewed as Video assets.
 
 Background task tracking defaults to 30 minutes; generation `--timeout` accepts 10–3600 seconds. Individual `task wait` calls remain bounded to 1–60 seconds. `task get/wait/diagnose` exposes `phase`, `remote_status`, `tracking_timeout_seconds`, and client-observed `timing` timestamps/durations. Preparation starts when the local task is created, remote wait includes polling/network/recovery gaps, and finalization includes archival/download. Historical unknown phase durations are null. Resume preserves the remote ID and original submission timing. Client timings do not prove provider queue or computation time.
+
+Video inspection uses an npm-managed platform ffprobe, checked by `doctor --json` and `capabilities --json`. Install with optional dependencies enabled. Advanced deployments can override `SEALSEEK_MEDIA_FFPROBE_BIN` or provide ffprobe in PATH when a packaged binary is unavailable. See THIRD_PARTY_NOTICES.md for binary licensing and supported targets.

@@ -107,7 +107,7 @@ test('malformed managed manifest and synchronization failure cannot report succe
 
 test('new package installation synchronizes the exact custom target through the new CLI',()=>fixture(async dir=>{
   const root=path.join(dir,'package'),target=path.join(dir,'target'),other=path.join(dir,'other');await fs.mkdir(root);
-  for(const name of ['src','bin','skills','package.json','node_modules'])await fs.cp(path.join(ROOT,name),path.join(root,name),{recursive:true,dereference:true});
+  for(const name of ['src','bin','skills','package.json','capabilities.json','node_modules'])await fs.cp(path.join(ROOT,name),path.join(root,name),{recursive:true,dereference:true});
   await stale(target);await stale(other,'different-agent');const otherMarker=await fs.readFile(path.join(other,'.sealseek-media-install.json'));
   const result=await installVersion(NEXT,[resolveUpdateTarget({agent:'custom-agent',path:target},{})],{root,dir:path.join(dir,'state'),npmScript:async()=>'',execute:async()=>{const file=path.join(root,'package.json'),meta=await readJson(file);meta.version=NEXT;await fs.writeFile(file,JSON.stringify(meta));}});
   assert.equal((await readJson(path.join(result.backup,'package.json'))).version,META.version);
@@ -118,7 +118,7 @@ test('new package installation synchronizes the exact custom target through the 
 test('packed-style real CLI repairs cached custom target via flags and env, preserves metadata and refuses local edits',()=>fixture(async dir=>{
   const global=path.join(dir,'global'),root=path.join(global,...META.name.split('/'));
   await fs.mkdir(root,{recursive:true});
-  for(const name of ['src','bin','skills','package.json','node_modules'])await fs.cp(path.join(ROOT,name),path.join(root,name),{recursive:true,dereference:true});
+  for(const name of ['src','bin','skills','package.json','capabilities.json','node_modules'])await fs.cp(path.join(ROOT,name),path.join(root,name),{recursive:true,dereference:true});
   const npmScript=path.join(dir,'npm-cli.js');await fs.writeFile(npmScript,`process.stdout.write(${JSON.stringify(global)});`);
   const state=path.join(dir,'state');await createJson(path.join(state,'updates.json'),{owner:META.name,id:'updates',enabled:true,last_check:Date.now()});
   const target=path.join(dir,'custom'),other=path.join(dir,'other');await stale(target);await stale(other,'another-agent');

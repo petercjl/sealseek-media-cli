@@ -1,0 +1,85 @@
+{
+  "schema": "sealseek-media-package-capabilities",
+  "schema_version": "1.0.0",
+  "canonical_skill_contract": "skills/sealseek-media/capabilities.json",
+  "installationLifecycle": {
+    "skillRequired": true,
+    "updateRequiresSkillSync": true,
+    "required_components": [
+      "cli",
+      "skill"
+    ],
+    "install": "npm install completes the CLI phase; then sealseek-media skill install --agent AGENT --path OWN_SKILL_DIRECTORY --json",
+    "update": "sealseek-media update install --yes --agent AGENT --path OWN_SKILL_DIRECTORY --json; verify both components after any direct npm upgrade",
+    "verification": "sealseek-media version and skill status --agent AGENT --path OWN_SKILL_DIRECTORY --json; complete only when installed and current are true",
+    "target_scope": "current/requested Agent only"
+  },
+  "commandContracts": {
+    "doctor|capabilities": {
+      "options": {
+        "--live": {
+          "type": "boolean"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "skill install|update": {
+      "options": {
+        "--agent": {
+          "type": "string"
+        },
+        "--path": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "update install": {
+      "options": {
+        "--yes": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string"
+        },
+        "--path": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "package-and-skill-update"
+    }
+  },
+  "automaticUpdates": {
+    "enabledByDefault": true,
+    "intervalHours": 24,
+    "timeoutMs": 1500,
+    "trigger": "ordinary task entries, excluding help/version/skill/task following",
+    "configuration": "private update policy; update auto on|off|status",
+    "disable": "SEALSEEK_MEDIA_AUTO_UPDATE=0",
+    "recovery": "offline checks retain current CLI; selected managed Skill synchronization is verified independently",
+    "defaultMode": "auto",
+    "installation": "explicit-standing-authorization"
+  },
+  "runtime_dependencies": {
+    "ffprobe": {
+      "package": "@ffprobe-installer/ffprobe@2.1.2",
+      "required_for": [
+        "video generation preflight",
+        "task video inspection",
+        "media video inspection"
+      ],
+      "discovery": "SEALSEEK_MEDIA_FFPROBE_BIN, npm platform binary, PATH",
+      "check": "doctor --json / capabilities --json -> dependencies.ffprobe",
+      "recovery": "Install package with optional dependencies enabled; or configure a working ffprobe executable. Inspect the same task after repair."
+    }
+  }
+}

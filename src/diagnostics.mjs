@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import {runFFprobe} from './ffprobe.mjs';
 import { hash,requireValue } from './core.mjs';
 import { videoGuide } from './video-contract.mjs';
 
@@ -13,13 +13,13 @@ export function diagnose(job,summary) {
       next_action:job.result?.urls?.length?'Use task download with a fresh output directory.':job.status==='succeeded'?'Use task inspect to verify the saved files.':['queued','running','generated'].includes(job.status)?'Continue following this task ID.':'Read the error and match provider history before authorizing another generation.'},
     ...(guide?{model_guide:guide}:{})};
 }
-export async function inspectFile(artifact,{probe=(file)=>spawnSync('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=width,height,r_frame_rate,duration:format=duration','-of','json',file],{encoding:'utf8',timeout:20000,windowsHide:true})}={}) {
+export async function inspectFile(artifact,{probe=(file)=>runFFprobe(['-v','error','-select_streams','v:0','-show_entries','stream=width,height,r_frame_rate,duration:format=duration','-of','json',file])}={}) {
   const bytes=await fs.readFile(artifact.path);
   requireValue(bytes.length===artifact.size&&hash(bytes)===artifact.sha256,'ARTIFACT_CHANGED','Saved artifact bytes differ from the task record.');
   const result={path:artifact.path,size:bytes.length,sha256:artifact.sha256,hash_verified:true};
   if(!/\.(mp4|webm|mov|png|jpe?g|webp|gif)$/i.test(artifact.path))return result;
   const r=probe(artifact.path);
-  if(r.error?.code==='ENOENT')return {...result,media_metadata_available:false,error:{code:'INSPECTION_UNAVAILABLE',message:'Install ffprobe to inspect media dimensions and duration.'}};
+  if(r.error?.code==='ENOENT')return {...result,media_metadata_available:false,error:{code:'INSPECTION_UNAVAILABLE',message:'ffprobe is unavailable. Run doctor --json; repair this package with optional dependencies enabled or configure SEALSEEK_MEDIA_FFPROBE_BIN, then inspect the same saved task.'}};
   requireValue(r.status===0,'INSPECTION_FAILED','ffprobe could not inspect the saved video.');
   const data=JSON.parse(r.stdout),stream=data.streams?.[0];
   requireValue(stream?.width>0&&stream?.height>0,'INSPECTION_FAILED','The file has no readable video stream.');

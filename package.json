@@ -11,7 +11,9 @@
     "src",
     "skills",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "capabilities.json"
   ],
   "engines": {
     "node": ">=22"
@@ -33,6 +35,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@ffprobe-installer/ffprobe": "2.1.2",
     "ajv": "8.20.0",
     "image-size": "^2.0.4"
   }
