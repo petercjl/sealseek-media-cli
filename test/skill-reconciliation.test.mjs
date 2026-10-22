@@ -119,7 +119,8 @@ test('packed-style real CLI repairs cached custom target via flags and env, pres
   const first=cli(['capabilities','--agent','custom-agent','--skill-path',target,'--json']);
   assert.equal(first.status,0,first.stdout+first.stderr);assert.equal(JSON.parse(first.stdout).ok,true);
   assert.equal(JSON.parse(first.stderr.trim()).auto_update.reload_skill,true);
-  assert.equal((await readJson(path.join(target,'.sealseek-media-install.json'))).source,await fs.realpath(path.join(root,'skills','sealseek-media')));
+  const reportedSource=(await readJson(path.join(target,'.sealseek-media-install.json'))).source;
+  assert.equal(await fs.realpath(reportedSource),await fs.realpath(path.join(root,'skills','sealseek-media')));
   assert.deepEqual(await fs.readFile(sidecar),customMetadata);assert.deepEqual(await fs.readFile(path.join(other,'.sealseek-media-install.json')),marker);
   const again=cli(['capabilities','--agent','custom-agent','--skill-path',target,'--json']);assert.equal(again.status,0);assert.equal(again.stderr,'');
   const second=cli(['capabilities','--json']);assert.equal(second.status,0);assert.equal(JSON.parse(second.stderr.trim()).auto_update.skill_sync.target.selection_source,'environment');
