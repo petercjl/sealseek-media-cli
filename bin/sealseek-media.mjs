@@ -14,7 +14,7 @@ import {archiveOptions,validatePlacement} from '../src/placement.mjs';
 import { SOURCE, INSTALLATION, status, install } from '../src/skills.mjs';
 import { localAuthStatus,logout } from '../src/auth.mjs';
 import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
-import { latestVersion,performUpdate,updateStatus,setAutomatic } from '../src/update.mjs';
+import { latestVersion,performUpdate,updateStatus,setAutomatic,invocationTarget,resolveUpdateTarget } from '../src/update.mjs';
 import { videoGuide } from '../src/video-contract.mjs';
 import { diagnose,inspectTask } from '../src/diagnostics.mjs';
 import { CATALOG,liveCatalog,modelContract,estimate } from '../src/models.mjs';
@@ -87,8 +87,12 @@ SealSeek image and video generation. Routing is configured in the calling Agent.
   skill status|install|update [--agent generic|AGENT_NAME] --path DIR --json
     Other Agents use the generic adapter and their own resolved Skill path.
   update check --json
-  update install --yes --json
+  update install --yes [--agent AGENT] [--path SKILL_DIR] --json
   update auto status|on|off --json
+
+  Current Agent for ordinary commands: --agent AGENT [--skill-path SKILL_DIR]
+  Or SEALSEEK_MEDIA_AGENT / SEALSEEK_MEDIA_SKILL_PATH (explicit flags take precedence).
+  Only this existing managed Skill is synchronized, including cached/same-version checks.
 
 Desktop discovery: --config FILE, --server NAME. These override the current
 user's SealSeek desktop configuration. Credentials stay outside this package.
@@ -268,22 +272,28 @@ async function main(argv) {
       if(['on','off'].includes(mode))return out(await setAutomatic(mode==='on'));
       throw new MediaError('INVALID_INPUT','Use update auto status, on or off.');
     }
-    const {options,args}=parse(rest,['json','yes']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
+    const {options,args}=parse(rest,['json','yes','agent','path']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     if(action==='check'){const latest=await latestVersion();return out({ok:true,current:META.version,latest,update_available:latest!==META.version});}
-    if(action==='install') {requireValue(options.yes,'PERMISSION_REQUIRED','Package update requires --yes.');return out(await performUpdate({automatic:false}));}
+    if(action==='install') {requireValue(options.yes,'PERMISSION_REQUIRED','Package update requires --yes.');return out(await performUpdate({automatic:false,target:resolveUpdateTarget(options)}));}
   }
   throw new MediaError('UNKNOWN_COMMAND','Unknown command. Use sealseek-media --help.');
 }
 async function entry() {
-  const argv=process.argv.slice(2);
-  if(argv[0]&&!['_worker','_auth-worker','update'].includes(argv[0])&&process.env.SEALSEEK_MEDIA_AUTO_UPDATE!=='0') {
-    const result=await performUpdate();
+  const original=process.argv.slice(2);
+  const selection=['skill','update','_worker','_auth-worker'].includes(original[0])?{argv:original,target:null}:invocationTarget(original,['task','version','--help','-h','help'].includes(original[0])?{}:process.env);
+  const {argv,target}=selection;
+  if(argv[0]&&!['_worker','_auth-worker','update','skill','task','version','--help','-h','help'].includes(argv[0])&&process.env.SEALSEEK_MEDIA_AUTO_UPDATE!=='0') {
+    const result=await performUpdate({target});
     if(result.skipped==='update_in_progress')throw new MediaError('UPDATE_BUSY','Another CLI is updating this package. Retry after the update finishes; no media request was submitted.');
-    if(!result.ok)console.error(JSON.stringify({auto_update:result}));
+    if(!result.ok) {
+      console.error(JSON.stringify({auto_update:result}));
+      if(['SKILL_SYNC_FAILED','LOCAL_EDITS','UNMANAGED_TARGET','UNMANAGED_STATE'].includes(result.error?.code))throw new MediaError(result.error.code,result.error.message,result.error.details);
+    }
+    if(result.skill_sync?.receipts.some(receipt=>receipt.state==='installed'))console.error(JSON.stringify({auto_update:{skill_sync:result.skill_sync,reload_skill:true}}));
     const installed=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8'));
     if(installed.version!==META.version) {
-      console.error(JSON.stringify({auto_update:{version:installed.version,updated:true}}));
-      const r=spawnSync(process.execPath,[path.join(ROOT,'bin','sealseek-media.mjs'),...argv],{stdio:'inherit',env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
+      console.error(JSON.stringify({auto_update:{version:installed.version,updated:true,reload_skill:true}}));
+      const r=spawnSync(process.execPath,[path.join(ROOT,'bin','sealseek-media.mjs'),...original],{stdio:'inherit',env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
       process.exitCode=r.status??1;return;
     }
   }

@@ -9,7 +9,7 @@ import { performUpdate,newer,settings,installVersion,npmCli,activeWork } from '.
 
 async function fixture(fn){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-update-'));try{await fn(dir);}finally{await fs.rm(dir,{recursive:true,force:true});}}
 test('automatic stable update installs once, synchronizes selected Skills and throttles checks',()=>fixture(async dir=>{
- let checks=0,installs=0;const options={dir,root:dir,current:'0.1.2',env:{},isGlobal:async()=>true,busy:async()=>false,targets:async()=>['codex','workbuddy'],latest:async()=>{checks++;return '0.1.3';},install:async(version,targets)=>{installs++;assert.deepEqual(targets,['codex','workbuddy']);return {version};}};
+ let checks=0,installs=0;const options={dir,root:dir,current:'0.1.2',env:{},isGlobal:async()=>true,busy:async()=>false,targets:async()=>['codex','workbuddy'],reconcile:async()=>[],latest:async()=>{checks++;return '0.1.3';},install:async(version,targets)=>{installs++;assert.deepEqual(targets,['codex','workbuddy']);return {version};}};
  assert.equal((await settings(dir)).enabled,true);assert.equal((await performUpdate(options)).updated,true);
  assert.equal((await performUpdate(options)).skipped,'not_due');assert.equal(checks,1);assert.equal(installs,1);
  assert.equal((await settings(dir)).installed,'0.1.3');

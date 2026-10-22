@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  SEALSEEK_MEDIA_AUTO_UPDATE: '0'
 jobs:
   qa:
     strategy:

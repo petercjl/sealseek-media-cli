@@ -15,7 +15,8 @@ export const INSTALLATION = {
     status: 'sealseek-media skill status --agent generic --path <own-skill-directory>/sealseek-media --json',
     update: 'sealseek-media skill update --agent generic --path <own-skill-directory>/sealseek-media --json'
   },
-  update_scope: 'Custom paths require explicit skill update with the same --path after a package update.'
+  update_scope: 'Current Agent only. Bind ordinary invocations with --agent and --skill-path, or SEALSEEK_MEDIA_AGENT and SEALSEEK_MEDIA_SKILL_PATH. Existing managed Skills are reconciled even when the package is current or the registry check is cached.',
+  invocation: { agent_flag:'--agent', path_flag:'--skill-path', agent_env:'SEALSEEK_MEDIA_AGENT', path_env:'SEALSEEK_MEDIA_SKILL_PATH', precedence:'explicit flags replace environment selection', unspecified:'no Agent Skill directories scanned or synchronized' }
 };
 const MARKER = '.sealseek-media-install.json';
 export function renderSkill(text, agent) { return text; }
@@ -52,6 +53,7 @@ export async function status(agent = 'generic', custom) {
   }
   const manifest=await readJson(path.join(target,MARKER)).catch(()=>null);
   const managed=manifest?.owner===META.name;
+  if(managed)requireValue(manifest.hashes&&typeof manifest.hashes==='object'&&!Array.isArray(manifest.hashes)&&Object.values(manifest.hashes).every(value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)),'UNMANAGED_STATE','Managed Skill hash manifest is invalid; preserve the target and inspect its installation record.');
   const actual=stat.isDirectory() ? await hashes(target) : {};
   const edited=managed && (Object.entries(manifest.hashes).some(([name,digest])=> actual[name]!==digest && name !== path.join('agents','openai.yaml')) || Object.keys(actual).some(name=>!(name in manifest.hashes)));
   return { ok:true,agent,adapter,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && manifest.source===SOURCE && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };

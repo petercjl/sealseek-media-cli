@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { ROOT,META,stateRoot,exists,readJson,createJson,replaceJob,requireValue,publicError,hash } from './core.mjs';
-import { status } from './skills.mjs';
+import { status, destination } from './skills.mjs';
 
 const DAY=86400000;
 export function newer(candidate,current) {
@@ -52,13 +52,50 @@ export async function globalInstallation(root=ROOT) {
   const expected=path.join(global,...META.name.split('/'));
   return (await fs.realpath(expected).catch(()=>null))===await fs.realpath(root);
 }
-export async function managedTargets() {
-  const targets=[];
-  for(const agent of ['codex','workbuddy','sealseek']) {
-    const info=await status(agent);
-    requireValue(!info.managed||!info.edited,'LOCAL_EDITS','A managed Skill has local edits; review it before updating.',{agent});
-    if(info.managed)targets.push(agent);
-  }return targets;
+export function resolveUpdateTarget(options={},env=process.env) {
+  const explicit=options.agent!==undefined||options.path!==undefined;
+  const agent=explicit ? options.agent : env.SEALSEEK_MEDIA_AGENT;
+  const custom=explicit ? options.path : env.SEALSEEK_MEDIA_SKILL_PATH;
+  if(agent===undefined&&custom===undefined)return null;
+  const name=agent ?? 'generic';
+  return {agent:name,path:destination(name,custom),selection_source:explicit?'arguments':'environment'};
+}
+export function invocationTarget(argv,env=process.env) {
+  const remaining=[],options={};
+  for(let i=0;i<argv.length;i++) {
+    const [key,...tail]=argv[i].split('=');
+    if(!['--agent','--skill-path'].includes(key)){remaining.push(argv[i]);continue;}
+    const field=key==='--agent'?'agent':'path';
+    requireValue(!(field in options),'INVALID_INPUT',`Repeated option ${key}.`);
+    const value=tail.length?tail.join('='):argv[++i];
+    requireValue(typeof value==='string'&&value.trim()&&!value.startsWith('--'),'INVALID_INPUT',`Missing value for ${key}.`);
+    options[field]=value;
+  }
+  return {argv:remaining,target:resolveUpdateTarget(options,env)};
+}
+export async function managedTargets(target=null) {
+  if(!target)return [];
+  const info=await status(target.agent,target.path);
+  requireValue(!info.installed||info.managed,'UNMANAGED_TARGET','Selected Skill is user-owned; automatic synchronization refused.',{target});
+  requireValue(!info.edited,'LOCAL_EDITS','Selected managed Skill has local edits; review it before updating.',{target});
+  return info.installed?[target]:[];
+}
+async function synchronizeSkill(target,{root=ROOT}={}) {
+  const agent=typeof target==='string'?target:target.agent;
+  const custom=typeof target==='string'?undefined:target.path;
+  const args=['skill','update','--agent',agent,...(custom?['--path',custom]:[]),'--json'];
+  const r=spawnSync(process.execPath,[path.join(root,'bin','sealseek-media.mjs'),...args],{encoding:'utf8',timeout:120000,env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
+  let result;try{result=JSON.parse(r.stdout);}catch { /* Invalid receipts fail closed. */ }
+  requireValue(r.status===0&&result?.ok&&result.current,'SKILL_SYNC_FAILED','Selected Skill synchronization failed; inspect the target before continuing.',{target,error:result?.error});
+  return result;
+}
+export async function reconcileSkills(targets,{synchronize=synchronizeSkill}={}) {
+  const receipts=[];
+  for(const target of targets) {
+    const info=await status(typeof target==='string'?target:target.agent,typeof target==='string'?undefined:target.path);
+    receipts.push(info.current?{...info,state:'unchanged'}:await synchronize(target));
+  }
+  return receipts;
 }
 export async function activeWork(dir=stateRoot()) {
   for(const folder of ['jobs','auth-sessions']) {
@@ -83,31 +120,35 @@ export async function installVersion(version,targets,{root=ROOT,dir=stateRoot(),
     const installed=await readJson(path.join(root,'package.json'));
     requireValue(installed.name===META.name&&installed.version===version,'UPDATE_VERIFICATION_FAILED','Installed package version mismatch.');
     for(const agent of targets){
-      const r=synchronize?await synchronize(agent):spawnSync(process.execPath,[path.join(root,'bin','sealseek-media.mjs'),'skill','update','--agent',agent,'--json'],{encoding:'utf8',timeout:120000,env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
-      requireValue(r.status===0,'SKILL_SYNC_FAILED','Package installed, but managed Skill synchronization failed.',{agent,backup});
+      if(synchronize) {
+        const r=await synchronize(agent);
+        requireValue(r.status===0,'SKILL_SYNC_FAILED','Package installed, but managed Skill synchronization failed.',{agent,backup});
+      } else await synchronizeSkill(agent,{root});
     }
     return {version,backup,skills_synchronized:targets};
   }catch(e){e.details={...e.details,backup};throw e;}
 }
-export async function performUpdate({automatic=true,dir=stateRoot(),root=ROOT,current=META.version,env=process.env,now=Date.now(),latest=latestVersion,isGlobal=globalInstallation,targets=managedTargets,busy=activeWork,install}={}) {
+export async function performUpdate({automatic=true,dir=stateRoot(),root=ROOT,current=META.version,env=process.env,now=Date.now(),latest=latestVersion,isGlobal=globalInstallation,target=resolveUpdateTarget({},env),targets=()=>managedTargets(target),reconcile=reconcileSkills,busy=activeWork,install}={}) {
   install ||= (version,selected)=>installVersion(version,selected,{root,dir});
   if(await exists(path.join(root,'.git'))){requireValue(automatic,'DEVELOPMENT_CHECKOUT','Update a Git checkout through Git.');return {ok:true,skipped:'development_checkout'};}
   const config=await settings(dir);
   if(automatic&&(env.SEALSEEK_MEDIA_AUTO_UPDATE==='0'||!config.enabled))return {ok:true,skipped:'disabled'};
-  if(automatic&&now-(config.last_check||0)<DAY)return {ok:true,skipped:'not_due'};
   const lock=path.join(dir,'update-lock.json'),id=crypto.randomUUID();
   try{await createJson(lock,{owner:META.name,id,pid:process.pid});}
-  catch(e){if(e.code!=='EEXIST')throw e;const held=await readJson(lock);requireValue(held.owner===META.name,'UNMANAGED_STATE','Update lock ownership mismatch.');let alive=true;try{process.kill(held.pid,0);}catch(err){alive=err.code!=='ESRCH';}if(alive)return {ok:true,skipped:'update_in_progress'};await fs.unlink(lock);return performUpdate({automatic,dir,root,current,env,now,latest,isGlobal,targets,busy,install});}
+  catch(e){if(e.code!=='EEXIST')throw e;const held=await readJson(lock);requireValue(held.owner===META.name,'UNMANAGED_STATE','Update lock ownership mismatch.');let alive=true;try{process.kill(held.pid,0);}catch(err){alive=err.code!=='ESRCH';}if(alive)return {ok:true,skipped:'update_in_progress'};await fs.unlink(lock);return performUpdate({automatic,dir,root,current,env,now,latest,isGlobal,target,targets,reconcile,busy,install});}
+  let skill_sync;
   try {
     requireValue(await isGlobal(root),'UNSUPPORTED_INSTALLATION','Automatic updates support global npm installations; use your package manager for other installations.');
     if(await busy(dir))return {ok:true,skipped:'active_work'};
     const selected=await targets();
+    skill_sync={target,receipts:await reconcile(selected),...(selected.length?{}:{skipped:target?'not_installed':'current_agent_unspecified'})};
+    if(automatic&&now-(config.last_check||0)<DAY)return {ok:true,skipped:'not_due',skill_sync};
     config.last_check=now;await store(config,dir);
     const version=await latest();config.latest=version;delete config.error;
-    if(!newer(version,current)){await store(config,dir);return {ok:true,current,latest:version,updated:false};}
+    if(!newer(version,current)){await store(config,dir);return {ok:true,current,latest:version,updated:false,skill_sync};}
     const result=await install(version,selected);config.last_update=Date.now();config.installed=version;delete config.error;await store(config,dir);
     return {ok:true,updated:true,...result};
   }catch(e){
-    config.error=publicError(e);await store(config,dir);if(!automatic)throw e;return {ok:false,error:config.error};
+    config.error=publicError(e);await store(config,dir);if(!automatic)throw e;return {ok:false,error:config.error,...(skill_sync?{skill_sync}:{})};
   }finally{const held=await readJson(lock).catch(()=>null);if(held?.id===id)await fs.unlink(lock);}
 }

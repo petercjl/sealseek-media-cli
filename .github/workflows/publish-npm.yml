@@ -19,6 +19,9 @@ permissions:
   contents: write
   id-token: write
 
+env:
+  SEALSEEK_MEDIA_AUTO_UPDATE: '0'
+
 concurrency:
   group: npm-release-${{ github.repository }}
   cancel-in-progress: false
@@ -56,7 +59,7 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Upgrade npm for OIDC
-        run: npm install --global npm@latest
+        run: npm install --global npm@11.18.0
       - run: npm ci
       - run: npm run check --if-present
         timeout-minutes: 3

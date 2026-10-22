@@ -319,5 +319,44 @@
     "fallback_adapter": "generic",
     "requirements": "Node.js >=22, CLI execution, structured JSON and delivery-file access; verify in the current host.",
     "installation": "Other Agents resolve their own Skill directory and pass --path. Names are adapter preferences, not a host allowlist."
+  },
+  "automatic_update": {
+    "enabled_by_default": true,
+    "trigger": "ordinary task entry (including capabilities); excludes skill/version/help/task/internal workers",
+    "registry_interval_hours": 24,
+    "local_skill_check": "each enabled ordinary entry, independent of registry cache and package-version changes",
+    "target": {
+      "flags": [
+        "--agent",
+        "--skill-path"
+      ],
+      "environment": [
+        "SEALSEEK_MEDIA_AGENT",
+        "SEALSEEK_MEDIA_SKILL_PATH"
+      ],
+      "maintenance_flags": [
+        "--agent",
+        "--path"
+      ],
+      "precedence": "explicit flags replace environment selection",
+      "scope": "selected existing managed Skill only; custom Agent names use generic adapter",
+      "unspecified": "no Skill directories scanned or synchronized"
+    },
+    "disable": "SEALSEEK_MEDIA_AUTO_UPDATE=0 or update auto off",
+    "reload_receipt": "stderr auto_update.reload_skill=true",
+    "guards": [
+      "ownership",
+      "local-edits",
+      "verified-backup",
+      "hashes",
+      "active-work",
+      "update-lock"
+    ],
+    "errors": [
+      "LOCAL_EDITS",
+      "UNMANAGED_TARGET",
+      "SKILL_SYNC_FAILED",
+      "UPDATE_BUSY"
+    ]
   }
 }
