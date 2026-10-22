@@ -56,7 +56,8 @@ export async function status(agent = 'generic', custom) {
   if(managed)requireValue(manifest.hashes&&typeof manifest.hashes==='object'&&!Array.isArray(manifest.hashes)&&Object.values(manifest.hashes).every(value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)),'UNMANAGED_STATE','Managed Skill hash manifest is invalid; preserve the target and inspect its installation record.');
   const actual=stat.isDirectory() ? await hashes(target) : {};
   const edited=managed && (Object.entries(manifest.hashes).some(([name,digest])=> actual[name]!==digest && name !== path.join('agents','openai.yaml')) || Object.keys(actual).some(name=>!(name in manifest.hashes)));
-  return { ok:true,agent,adapter,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && manifest.source===SOURCE && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
+  const sameSource=managed&&typeof manifest.source==='string'&&(await fs.realpath(manifest.source).catch(()=>null))===await fs.realpath(SOURCE);
+  return { ok:true,agent,adapter,destination:target,installed:true,managed,current:managed && !edited && manifest.version===META.version && sameSource && Object.keys(actual).length===Object.keys(sourceHashes).length && Object.entries(sourceHashes).every(([name,digest])=> actual[name]===digest || name === path.join('agents','openai.yaml')), edited,mode:'copy',version:manifest?.version };
 }
 export async function install(agent = 'generic', options = {}) {
   const rename = options.rename || fs.rename;

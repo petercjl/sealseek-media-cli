@@ -6,7 +6,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { ROOT, META, createJson, readJson } from '../src/core.mjs';
-import { install, status, hashes } from '../src/skills.mjs';
+import { install, status, hashes, SOURCE } from '../src/skills.mjs';
 import { performUpdate, resolveUpdateTarget, invocationTarget, managedTargets, installVersion } from '../src/update.mjs';
 const NEXT=META.version.replace(/\d+$/,value=>String(Number(value)+1));
 
@@ -49,6 +49,16 @@ test('daily registry cache and offline registry do not skip local Skill reconcil
   await stale(target);
   const offline=await performUpdate({...options(dir,binding),now:Date.now()+86400001,latest:async()=>{throw Object.assign(Error('offline'),{code:'ENETUNREACH'});}});
   assert.equal(offline.ok,false);assert.equal(offline.error.code,'ENETUNREACH');assert.equal(offline.skill_sync.receipts[0].current,true);
+}));
+
+test('equivalent canonical source paths remain current without unnecessary backup or synchronization',()=>fixture(async dir=>{
+  const target=path.join(dir,'target');await install('custom-agent',{path:target});
+  const marker=path.join(target,'.sealseek-media-install.json'),value=await readJson(marker);
+  value.source=SOURCE+path.sep+'.';await fs.writeFile(marker,JSON.stringify(value));
+  assert.equal((await status('custom-agent',target)).current,true);
+  const result=await performUpdate(options(dir,resolveUpdateTarget({agent:'custom-agent',path:target},{})));
+  assert.equal(result.skill_sync.receipts[0].state,'unchanged');
+  assert.equal(await fs.stat(path.join(dir,'state','skill-backups')).catch(()=>null),null);
 }));
 
 test('target selection is explicit, generic and isolated; malformed bindings fail before writes',()=>fixture(async dir=>{
