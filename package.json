@@ -29,7 +29,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/sealseek-media.mjs && node --test"
+    "check": "node --check bin/sealseek-media.mjs && node --test",
+    "postinstall": "node src/postinstall.mjs"
   },
   "publishConfig": {
     "access": "public"

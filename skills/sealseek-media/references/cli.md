@@ -236,3 +236,5 @@ For Agent entry, one successful `capabilities --live --json` provides version, a
 ## Video inspection dependency
 
 `doctor --json` and `capabilities --json` expose `dependencies.ffprobe` with executable source, version and readiness. npm supplies `@ffprobe-installer/ffprobe` and the matching platform binary; install with optional dependencies enabled. An explicit `SEALSEEK_MEDIA_FFPROBE_BIN` takes precedence. On an unsupported platform, provide a working FFmpeg/ffprobe through PATH. Repair dependency failures before video submission, or reinspect an existing task after repair. No video regeneration is needed.
+
+When npm blocks dependency lifecycle scripts, `dependencies setup --json` restores the executable bit only on the canonical npm-managed ffprobe binary and verifies its version. It preserves configured external binaries. Ordinary doctor/inspection stays read-only; missing platform packages require installation with optional dependencies enabled.

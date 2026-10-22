@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {ffprobeCommand,ffprobeStatus,runFFprobe} from '../src/ffprobe.mjs';
+import {ffprobeCommand,ffprobeStatus,runFFprobe,setupFFprobe} from '../src/ffprobe.mjs';
 
 test('ffprobe resolver keeps explicit intent and executes literal Unicode/quoted input without a shell',()=>{
  const configured='C:\\自有 工具\\ffprobe.exe';
@@ -28,4 +28,8 @@ test('npm-managed ffprobe reads real saved MP4 dimensions and duration with no P
   assert.equal(r.status,0,r.stderr||r.error?.message);const data=JSON.parse(r.stdout),v=data.streams.find(s=>s.codec_type==='video');
   assert.equal(v.width,16);assert.equal(v.height,16);assert.equal(Number(data.format.duration),1);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('explicit package dependency setup is repeatable and verifies the actual executable',()=>{
+ const first=setupFFprobe(),second=setupFFprobe();assert.equal(first.ok,true);assert.equal(second.ok,true);assert.equal(second.source,'package');
 });

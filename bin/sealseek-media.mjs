@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
-import {ffprobeStatus} from '../src/ffprobe.mjs';
+import {ffprobeStatus,setupFFprobe} from '../src/ffprobe.mjs';
 import {MODEL_POLICY,assertModelAllowed} from '../src/model-policy.mjs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -189,6 +189,7 @@ async function main(argv) {
     if(options.live)return withConnection(options,async c=>render(c,c.catalog));
     return render(null,CATALOG);
   }
+  if(command==='dependencies'&&action==='setup'){const {args}=parse(rest,['json']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');const check=setupFFprobe();if(!check.ok)process.exitCode=1;return out({ok:check.ok,ffprobe:check});}
   if (command === 'doctor' || command === 'capabilities') {
     const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
     const manifest={...JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8')),...JSON.parse(await fs.readFile(path.join(ROOT,'capabilities.json'),'utf8'))};

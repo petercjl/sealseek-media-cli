@@ -56,6 +56,15 @@
         }
       },
       "sideEffects": "package-and-skill-update"
+    },
+    "dependencies setup": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "local-write",
+      "output": "Verify package-managed ffprobe; restore its executable bit on POSIX when install scripts were blocked."
     }
   },
   "automaticUpdates": {
