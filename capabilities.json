@@ -3,16 +3,31 @@
   "schema_version": "1.0.0",
   "canonical_skill_contract": "skills/sealseek-media/capabilities.json",
   "installationLifecycle": {
+    "agentNeutral": true,
     "skillRequired": true,
     "updateRequiresSkillSync": true,
     "required_components": [
       "cli",
-      "skill"
+      "skill",
+      "runtime"
     ],
-    "install": "npm install completes the CLI phase; then sealseek-media skill install --agent AGENT --path OWN_SKILL_DIRECTORY --json",
-    "update": "sealseek-media update install --yes --agent AGENT --path OWN_SKILL_DIRECTORY --json; verify both components after any direct npm upgrade",
-    "verification": "sealseek-media version and skill status --agent AGENT --path OWN_SKILL_DIRECTORY --json; complete only when installed and current are true",
-    "target_scope": "current/requested Agent only"
+    "installGuide": "INSTALL.md",
+    "updateGuide": "UPDATE.md",
+    "explicitTargetRequired": true,
+    "hostDiscoveryVerification": true,
+    "physicalCopies": true,
+    "isolatedRuntime": true,
+    "sharedLinks": false,
+    "postBumpIdentityValidation": true,
+    "install": "Resolve own directory; skill install --agent AGENT --path EXACT_SKILL_DIR --json",
+    "update": "Resolve selected target first; update install --yes --path EXACT_SKILL_DIR --json",
+    "verification": "Local runtime version, managed hashes, then host-native discovery",
+    "target_scope": "selected current Agent only",
+    "targetRequired": true,
+    "hostRegistrationRequired": true,
+    "installationMode": "copy",
+    "sharedLinksAllowed": false,
+    "isolatedRuntimeRequired": true
   },
   "commandContracts": {
     "doctor|capabilities": {
@@ -26,37 +41,6 @@
       },
       "sideEffects": "none"
     },
-    "skill install|update": {
-      "options": {
-        "--agent": {
-          "type": "string"
-        },
-        "--path": {
-          "type": "string"
-        },
-        "--json": {
-          "type": "boolean"
-        }
-      },
-      "sideEffects": "local-write"
-    },
-    "update install": {
-      "options": {
-        "--yes": {
-          "type": "boolean"
-        },
-        "--agent": {
-          "type": "string"
-        },
-        "--path": {
-          "type": "string"
-        },
-        "--json": {
-          "type": "boolean"
-        }
-      },
-      "sideEffects": "package-and-skill-update"
-    },
     "dependencies setup": {
       "options": {
         "--json": {
@@ -65,18 +49,400 @@
       },
       "sideEffects": "local-write",
       "output": "Verify package-managed ffprobe; restore its executable bit on POSIX when install scripts were blocked."
+    },
+    "skill source": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "skill status": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        }
+      },
+      "sideEffects": "none"
+    },
+    "skill install": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--mode": {
+          "type": "string",
+          "enum": [
+            "copy",
+            "link"
+          ],
+          "description": "Legacy link requests migrate to a physical copy."
+        },
+        "--legacy-source": {
+          "type": "string",
+          "description": "Explicit owning package root for verified legacy migration."
+        },
+        "--force": {
+          "type": "boolean",
+          "description": "Accepted legacy flag; local edit protection remains enforced."
+        },
+        "--backup-edits": {
+          "type": "boolean",
+          "description": "Accepted legacy flag; local edits require separate reconciliation."
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "skill update": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--mode": {
+          "type": "string",
+          "enum": [
+            "copy",
+            "link"
+          ],
+          "description": "Legacy link requests migrate to a physical copy."
+        },
+        "--legacy-source": {
+          "type": "string",
+          "description": "Explicit owning package root for verified legacy migration."
+        },
+        "--force": {
+          "type": "boolean",
+          "description": "Accepted legacy flag; local edit protection remains enforced."
+        },
+        "--backup-edits": {
+          "type": "boolean",
+          "description": "Accepted legacy flag; local edits require separate reconciliation."
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "update check": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "update install": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--yes": {
+          "type": "boolean",
+          "required": true
+        },
+        "--candidate": {
+          "type": "string",
+          "description": "Absolute packed candidate archive for authorized installation."
+        },
+        "--version": {
+          "type": "string",
+          "description": "Exact stable registry version."
+        }
+      },
+      "sideEffects": "package-and-skill-update"
+    },
+    "update operation": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--operation": {
+          "type": "string"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "update resume": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--yes": {
+          "type": "boolean",
+          "required": true
+        },
+        "--operation": {
+          "type": "string"
+        }
+      },
+      "sideEffects": "package-and-skill-update"
+    },
+    "update rollback": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--yes": {
+          "type": "boolean",
+          "required": true
+        },
+        "--operation": {
+          "type": "string"
+        }
+      },
+      "sideEffects": "package-and-skill-update"
+    },
+    "update policy": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        },
+        "--yes": {
+          "type": "boolean"
+        },
+        "--mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "notify",
+            "auto"
+          ]
+        }
+      },
+      "sideEffects": "local-write",
+      "writeCondition": "Only an authorized explicit --mode change writes policy."
+    },
+    "update status": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        },
+        "--help": {
+          "type": "boolean"
+        },
+        "--agent": {
+          "type": "string",
+          "description": "Valid current Agent name; generic fallback for unnamed hosts."
+        },
+        "--path": {
+          "type": "string",
+          "description": "Exact Skill destination resolved by the current Agent."
+        },
+        "--root": {
+          "type": "string",
+          "description": "Legacy explicit parent directory; appends the canonical Skill name."
+        },
+        "--home": {
+          "type": "string",
+          "description": "Legacy explicitly resolved host root; appends skills and Skill name."
+        },
+        "--target-directory": {
+          "type": "string",
+          "description": "Explicit exact Skill destination alias."
+        }
+      },
+      "sideEffects": "none"
     }
   },
   "automaticUpdates": {
     "enabledByDefault": true,
+    "defaultMode": "notify",
     "intervalHours": 24,
-    "timeoutMs": 1500,
-    "trigger": "ordinary task entries, excluding help/version/skill/task following",
-    "configuration": "private update policy; update auto on|off|status",
+    "timeoutMs": 2000,
+    "trigger": "ordinary task entry; excludes help/version/source/task polling",
+    "configuration": "update policy --mode off|notify|auto --yes --path EXACT_SKILL_DIR",
     "disable": "SEALSEEK_MEDIA_AUTO_UPDATE=0",
-    "recovery": "offline checks retain current CLI; selected managed Skill synchronization is verified independently",
-    "defaultMode": "auto",
-    "installation": "explicit-standing-authorization"
+    "installation": "explicit standing authorization; compatible stable version only",
+    "recovery": "update operation and resume reuse verified candidate"
   },
   "runtime_dependencies": {
     "ffprobe": {
@@ -90,5 +456,89 @@
       "check": "doctor --json / capabilities --json -> dependencies.ffprobe",
       "recovery": "Install package with optional dependencies enabled; or configure a working ffprobe executable. Inspect the same task after repair."
     }
+  },
+  "maintenanceContract": {
+    "schemaVersion": 1,
+    "agentEligibility": "valid-name-with-generic-fallback",
+    "hostDiscoveryAuthority": "host",
+    "targetOptions": {
+      "--path": {
+        "kind": "skill-directory"
+      },
+      "--target-directory": {
+        "kind": "skill-directory"
+      },
+      "--root": {
+        "kind": "skill-parent"
+      },
+      "--home": {
+        "kind": "host-root"
+      }
+    },
+    "source": {
+      "name": {
+        "field": "name",
+        "type": "string"
+      },
+      "package": {
+        "field": "package",
+        "type": "string"
+      },
+      "version": {
+        "field": "version",
+        "type": "string"
+      },
+      "path": {
+        "field": "source",
+        "type": "string"
+      }
+    },
+    "status": {
+      "name": {
+        "field": "name",
+        "type": "string"
+      },
+      "package": {
+        "field": "package",
+        "type": "string"
+      },
+      "version": {
+        "field": "version",
+        "type": "string"
+      },
+      "target": {
+        "field": "target",
+        "type": "string"
+      },
+      "installed": {
+        "field": "installed",
+        "type": "boolean"
+      },
+      "managed": {
+        "field": "managed",
+        "type": "boolean"
+      },
+      "current": {
+        "field": "up_to_date",
+        "type": "boolean"
+      },
+      "edited": {
+        "field": "editedFiles",
+        "type": "string[]"
+      },
+      "verification": {
+        "field": "verification",
+        "type": "object"
+      },
+      "recovery": {
+        "field": "recovery",
+        "type": "object"
+      }
+    },
+    "legacyFields": {
+      "current": "boolean alias of up_to_date",
+      "edited": "boolean retained; use editedFiles for paths"
+    },
+    "evidenceReuse": "Reuse matching package/version/target/integrity receipts within the operation; repeat only after mutation, conflict or stale channel evidence."
   }
 }

@@ -1,0 +1,1 @@
+console.log(JSON.stringify({complete:false,code:'SKILL_SETUP_REQUIRED',installGuide:'INSTALL.md',updateGuide:'UPDATE.md',message:'The current Agent must resolve its own Skill directory, install a complete isolated copy, verify local runtime and native Skill discovery.'}));

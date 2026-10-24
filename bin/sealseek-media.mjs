@@ -1,305 +1,45 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import {ffprobeStatus,setupFFprobe} from '../src/ffprobe.mjs';
-import {MODEL_POLICY,assertModelAllowed} from '../src/model-policy.mjs';
+import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ROOT, META, MediaError, requireValue, parse, publicError } from '../src/core.mjs';
-import { connect, desktopConfig, call,request as canvasRequest,NATIVE_CONTRACT,validateNativeInput } from '../src/canvas.mjs';
-import { prepare, reference, upload, download } from '../src/media.mjs';
-import { submit, getJob, summary, waitJob, worker,resumeJob,syncJob } from '../src/jobs.mjs';
-import {listFolders,changeCanvasFile,folderId} from '../src/canvas-files.mjs';
-import {createProject,renameProject} from '../src/projects.mjs';
-import {canvasId,canvasSummary,createCanvas,getCanvas,listCanvases,useCanvas,arrangeCanvas,deleteCanvases,archiveMedia,appendMedia,applyCanvasBatch,batchCanvas,placeCanvas} from '../src/boards.mjs';
-import {archiveOptions,validatePlacement} from '../src/placement.mjs';
-import { SOURCE, INSTALLATION, status, install } from '../src/skills.mjs';
-import { localAuthStatus,logout } from '../src/auth.mjs';
-import { startLogin,loginStatus,serveLogin } from '../src/auth-web.mjs';
-import { latestVersion,performUpdate,updateStatus,setAutomatic,invocationTarget,resolveUpdateTarget } from '../src/update.mjs';
-import { videoGuide } from '../src/video-contract.mjs';
-import { diagnose,inspectTask } from '../src/diagnostics.mjs';
-import { CATALOG,liveCatalog,modelContract,estimate } from '../src/models.mjs';
-import { verifyCredentials } from '../src/service.mjs';
+import {spawnSync} from 'node:child_process';
+let lifecycle;try{lifecycle=await import('../lifecycle/engine.mjs');}catch{console.log(JSON.stringify({ok:false,code:'LIFECYCLE_DEPENDENCY_MISSING',message:'Install the owning npm package with its required dependencies before continuing.'}));process.exit(1);}
+const {dispatch,automatic,resolveTarget,status,root,pkg,config,installationLifecycle}=lifecycle;
+const args=process.argv.slice(2);
+if(!await dispatch(args)) {
+ if(args[0]==='version'||args[0]==='--version'){if(args.slice(1).some(x=>x!=='--json')||args.filter(x=>x==='--json').length>1){console.log(JSON.stringify({ok:false,code:'INVALID_ARGUMENT',message:'version accepts only one --json flag.'}));process.exitCode=1;}else console.log(JSON.stringify({ok:true,name:pkg.name,version:pkg.version,entry:process.argv[1]}));}
+ else {
+  let target;
+  try {
+   const declaration=JSON.parse(fs.readFileSync(path.join(root,'capabilities.json'),'utf8'));
+   const doctorRoot=args[0]==='doctor'&&declaration.commandContracts?.doctor?.options?.['--root'];
+   const binding={},clean=[];
+   for(let i=0;i<args.length;i++){
+    const key=args[i];if(!['--agent','--skill-path',...(doctorRoot?['--root']:[])].includes(key)){clean.push(key);continue;}
+    const field=key==='--agent'?'agent':key==='--root'?'root':'skill-path';if(field in binding||!args[i+1]||args[i+1].startsWith('--'))throw Object.assign(Error('Duplicate or missing target binding'),{code:'INVALID_ARGUMENT'});binding[field]=args[++i];
+   }
+   if(Object.keys(binding).length)target=resolveTarget(binding);
+   args.splice(0,args.length,...clean);process.argv.splice(2,process.argv.length-2,...clean);
 
-import {inspectMediaUrl} from '../src/media-inspect.mjs';
-
-const HELP=`sealseek-media ${META.version}
-SealSeek image and video generation. Routing is configured in the calling Agent. Node.js >=22.
-
-  version
-  doctor [--live] --json
-  capabilities [--live] --json
-  models list [--type image|video] [--live] --json
-  models show ID [--live] --json       (all parameters and transport limitations)
-  models estimate ID [--resolution VALUE] [--ratio RATIO]
-    [--duration SECONDS | --count N] --json (read-only pricing; no generation)
-  auth status [--live] [--login-id UUID] --json
-  auth login --json                  (local webpage; independent PLUGIN channel, SMS login only)
-  auth logout [--desktop] --yes --json (private backups before credential removal)
-  image generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
-    [--ratio RATIO] [--resolution VALUE] [--count 1-4]
-    [--prompt-file FILE] [--output DIR] [--dry-run | --submit] [--new] --json
-  video guide [--model ID] --json       (reference modes, model constraints, workflow)
-  video generate [--model ID] --prompt TEXT [--reference FILE_OR_URL ...]
-    [--reference-person present|absent ...] (one per image reference after visual inspection)
-    [--ratio RATIO] [--resolution VALUE] [--duration SECONDS]
-    [--first FILE_OR_URL] [--last FILE_OR_URL]
-    [--first-person present|absent] [--last-person present|absent]
-    [--video-reference FILE_OR_URL ...] [--audio-reference FILE_OR_URL]
-    [--audio true|false] [--video-options JSON_FILE]
-    [--prompt-file FILE] [--output DIR] [--timeout SECONDS (default 1800)]
-    [--dry-run | --submit] [--new] --json
-    Video has one output per request; --count is image-only.
-    Exact pixel size is not verified; use catalog ratio/resolution choices.
-  image edit --image FILE_OR_URL --prompt TEXT [--model ID]
-    [--output DIR] [--dry-run | --submit] --json
-  image detect-text --image FILE_OR_URL --submit --json
-  image replace-text --image FILE_OR_URL --old-text TEXT --new-text TEXT
-    [--box x1,y1,x2,y2] [--output DIR] [--dry-run | --submit] --json
-  image upload FILE --submit --json
-  task get ID --json
-  task resume ID --json               (queries the saved remote task; no resubmission)
-  task diagnose ID --json              (read-only; no generation replay)
-  task inspect ID --json               (saved file hashes, dimensions and duration)
-  task wait ID [--timeout 30] --json     (bounded wait, 1-60 seconds)
-  task download ID --output DIR --json  (uses stored URLs, never regenerates)
-  media inspect --url URL [--kind image|video] --json
-  canvas place ID --file JSON_FILE [--submit] --json (explicit element bounds)
-  canvas batch ID --file JSON_FILE [--submit] --json (explicit frames, media and optional texts)
-  canvas create --title TEXT --submit --json
-  canvas list [--folder FOLDER_ID] [--keyword TEXT] [--page N] [--limit N] --json
-  canvas folders [--keyword TEXT] --json (projects and folders share IDs)
-  project list [--keyword TEXT] --json
-  project create --name TEXT --request-id KEY [--submit] --json
-  project rename ID --name TEXT [--submit] --json
-  canvas rename ID --title TEXT [--submit] --json
-  canvas move ID [--folder FOLDER_ID | --root] [--submit] --json
-  canvas get ID --json
-  canvas use ID [--session CONVERSATION_ID] --yes --json
-  canvas delete [ID | --title EXACT_TITLE] [--submit --yes] --json
-  canvas arrange ID [--placement JSON_FILE] --submit --json (explicitly reflow CLI media)
-  video upload FILE --submit --json
-  canvas add ID --media JSON_FILE [--submit] --json (import existing remote media)
-  canvas tasks ID --json
-  task sync ID --json                 (archive existing output; no generation)
-  artifacts list [--type image|video] [--page N] [--limit N] --json
-  skill source --json
-  skill status|install|update --agent codex|workbuddy|sealseek [--path DIR] --json
-  skill status|install|update [--agent generic|AGENT_NAME] --path DIR --json
-    Other Agents use the generic adapter and their own resolved Skill path.
-  update check --json
-  update install --yes [--agent AGENT] [--path SKILL_DIR] --json
-  update auto status|on|off --json
-
-  Current Agent for ordinary commands: --agent AGENT [--skill-path SKILL_DIR]
-  Or SEALSEEK_MEDIA_AGENT / SEALSEEK_MEDIA_SKILL_PATH (explicit flags take precedence).
-  Only this existing managed Skill is synchronized, including cached/same-version checks.
-
-Desktop discovery: --config FILE, --server NAME. These override the current
-user's SealSeek desktop configuration. Credentials stay outside this package.
-Default image model: gpt-image-2.5-sunburst. Default video model: doubao-seedance-2-5.
-Alternatives require an explicit --model selection; no automatic fallback.
-Generation/edit accepts --archive canvas|none and --placement JSON_FILE (append/grid/explicit).
-Generation accepts --session CONVERSATION_ID (reuse one canvas per conversation) or --canvas ID.
-Without either, reuse the account default canvas. canvas use selects it.
-Generation defaults to dry-run. --submit executes a real generation request.
-Legacy --via sealseek is accepted for compatibility and is optional.
-Same requests reuse the saved local task; --new explicitly creates another.
-`;
-const common=['json','config','server'];
-const out=value=>console.log(JSON.stringify(value,null,2));
-async function withConnection(options,fn) { const c=await connect(options); try { return await fn(c); } finally { await c.close(); } }
-async function main(argv) {
-  const [command, action, ...rest]=argv;
-  if (!command || ['--help','-h','help'].includes(command)) return console.log(HELP);
-  if (['image','video'].includes(command)&&['--help','help','-h'].includes(action))return console.log(HELP);
-  if (['version','--version','-v'].includes(command)) return console.log(`sealseek-media ${META.version}`);
-  if (command === '_worker') return worker(action);
-  if(command==='_auth-worker')return serveLogin(action,{verify:async token=>verifyCredentials(await desktopConfig({authToken:token}))});
-  if(command==='auth'){
-    const {options,args}=parse(rest,[...common,'live','login-id','desktop','yes']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if(action==='login')return out({ok:true,...await startLogin()});
-    if(action==='logout')return out(await logout(options));
-    if(action==='status'){
-      if(options['login-id'])return out({ok:true,...await loginStatus(options['login-id'])});
-      const v=await localAuthStatus(options);if(options.live)return out({...v,...await verifyCredentials(await desktopConfig(options))});
-      return out({...v,verified:false});
-    }
+   const marker=path.join(path.dirname(root),'.agent-package.json');
+   if(!target&&path.basename(root)==='.runtime'&&fs.existsSync(marker)&&JSON.parse(fs.readFileSync(marker)).package===pkg.name)target=resolveTarget({path:path.dirname(root)});
+   else if(!target&&process.env[config.env+'_SKILL_PATH'])target=resolveTarget();
+  }catch(e){console.error(JSON.stringify({ok:false,code:e.code,message:e.message}));process.exit(1);}
+  const ordinary=!args.includes('--help')&&!args.includes('-h')&&!['task','help','--help','-h','_worker','_auth-worker'].includes(args[0])&&args.length;
+  if(ordinary&&!args.includes('--no-auto-update')){
+   const receipt=await automatic(target);
+   if(!['disabled','cached','up-to-date','owner-managed'].includes(receipt.state))console.error(JSON.stringify({automaticUpdate:receipt}));
+   if(receipt.state==='updated'){
+    console.error(JSON.stringify({reloadSkill:true,entry:receipt.receipt.entry}));
+    const r=spawnSync(process.execPath,[receipt.receipt.entry,...args],{stdio:'inherit',env:{...process.env,[config.env+'_AUTO_UPDATE']:'0'},windowsHide:true});process.exit(r.status??1);
+   }
+   if(!receipt.ok){console.error(JSON.stringify(receipt));process.exit(1);}
   }
-  if(command==='media'&&action==='inspect'){const {options}=parse(rest,[...common,'url','kind']);requireValue(options.url,'INVALID_INPUT','Provide --url.');return out({ok:true,...await inspectMediaUrl(options.url,options.kind||'image')});}
-  if(command==='project'){
-    const flags={list:['keyword'],create:['name','request-id','submit'],rename:['name','submit']};
-    requireValue(Object.hasOwn(flags,action),'UNKNOWN_COMMAND','Use project list, create or rename.');
-    const {options,args}=parse(rest,[...common,...flags[action]]);
-    requireValue(args.length===(action==='rename'?1:0),'INVALID_INPUT','Provide one project ID only for rename.');
-    const cfg=await desktopConfig(options);
-    if(action==='list')return out({ok:true,...await listFolders(cfg,{keyword:options.keyword})});
-    if(action==='create')return out({ok:true,...await createProject(cfg,{name:options.name,requestId:options['request-id'],submit:!!options.submit})});
-    return out({ok:true,...await renameProject(cfg,args[0],{name:options.name,submit:!!options.submit})});
+  if(args[0]==='doctor'&&target){
+   const installation=status(target),originalLog=console.log.bind(console);
+   console.log=(text,...rest)=>{let value;try{value=JSON.parse(text);}catch{return originalLog(text,...rest);}if(value&&typeof value==='object'){value.installation=installation;value.resolution=target;if(!installation.current){value.ok=false;value.code||='SKILL_RECONCILIATION_REQUIRED';process.exitCode=1;}}return originalLog(JSON.stringify(value,null,2));};
   }
-  if(command==='canvas'){
-    const {options,args}=parse(rest,[...common,'title','submit','yes','session','keyword','page','limit','media','placement','file','folder','root']);
-    requireValue(['create','list','get','use','tasks','arrange','delete','add','batch','place','folders','rename','move'].includes(action),'UNKNOWN_COMMAND','Use canvas --help to inspect canvas operations.');
-    const fileOptions={folders:['keyword'],rename:['title','submit'],move:['folder','root','submit']};
-    if(fileOptions[action])requireValue(Object.keys(options).every(k=>[...common,...fileOptions[action]].includes(k)),'INVALID_INPUT','Unsupported option for canvas '+action+'.');
-    else requireValue(!options.root&&(options.folder===undefined||action==='list'),'INVALID_INPUT','Folder selection applies to canvas list or move.');
-    if(action==='folders'){requireValue(args.length===0,'INVALID_INPUT','canvas folders takes no canvas ID.');return out({ok:true,...await listFolders(await desktopConfig(options),{keyword:options.keyword})});}
-    if(['rename','move'].includes(action)){requireValue(args.length===1&&(action!=='rename'||options.title!==undefined),'INVALID_INPUT','Provide one canvas ID and a title for rename.');if(action==='move')requireValue(options.title===undefined,'INVALID_INPUT','Use canvas rename to change a title.');return out({ok:true,...await changeCanvasFile(await desktopConfig(options),args[0],{title:options.title,folder:options.folder,root:!!options.root,submit:!!options.submit})});}
-    if(action==='place'){requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas place ID --file JSON_FILE [--submit].');const placements=JSON.parse(await fs.readFile(options.file,'utf8'));return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await placeCanvas(c.cfg,args[0],placements,!!options.submit)}));}
-    if(action==='batch'){
-      requireValue(args.length===1&&options.file,'INVALID_INPUT','Use canvas batch ID --file JSON_FILE [--submit].');
-      const batch=JSON.parse(await fs.readFile(options.file,'utf8'));applyCanvasBatch('{}',batch);
-      if(!options.submit)return out({ok:true,dry_run:true,canvas_id:canvasId(args[0]),frames:batch.frames.length,media:batch.media.length,texts:batch.texts?.length||0});
-      return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await batchCanvas(c.cfg,args[0],batch)}));
-    }
-    if(action==='add'){
-      requireValue(args.length===1&&options.media,'INVALID_INPUT','Use canvas add ID --media JSON_FILE [--submit].');
-      requireValue(!options.placement,'INVALID_INPUT','Embed placement in the media JSON for canvas add.');
-      let media;try{media=JSON.parse(await fs.readFile(options.media,'utf8'));}catch{throw new MediaError('INVALID_INPUT','Media must be a readable JSON object file.');}
-      requireValue(media&&typeof media==='object'&&!Array.isArray(media)&&Object.keys(media).every(k=>['id','kind','urls','ratio','placement','generationParams','frameId','posterUrl','sourceMetadata'].includes(k)),'INVALID_INPUT','Unknown media field.');
-      appendMedia('{}',media); // Validate every input before mutation or upload.
-      if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,canvas_id:canvasId(args[0]),media});
-      return withConnection(options,async c=>out({ok:true,canvas_id:args[0],...await archiveMedia(c.cfg,args[0],media)}));
-    }
-    if(action==='delete'){requireValue(args.length<=1,'INVALID_INPUT','Provide at most one canvas ID.');return withConnection(options,async c=>out({ok:true,...await deleteCanvases(c.cfg,{id:args[0],title:options.title,submit:!!options.submit,yes:!!options.yes})}));}
-    requireValue(args.length===(['get','use','tasks','arrange','delete'].includes(action)?1:0),'INVALID_INPUT','Provide one canvas ID for get/use/tasks.');
-    if(['create','arrange'].includes(action))requireValue(options.submit,'SUBMIT_REQUIRED','Creating a canvas requires --submit.');
-    if(action==='use')requireValue(options.yes,'CONFIRMATION_REQUIRED','Selecting a canvas requires --yes.');
-    return withConnection(options,async c=>{
-      if(action==='arrange')return out({ok:true,canvas_id:args[0],...await arrangeCanvas(c.cfg,args[0],validatePlacement({...((await archiveOptions(options)).placement),mode:'grid'}))});
-      if(action==='create')return out({ok:true,...canvasSummary(await createCanvas(c.cfg,options.title))});
-      if(action==='list')return out({ok:true,...await listCanvases(c.cfg,{page:Number(options.page||1),limit:Number(options.limit||20),keyword:options.keyword,...(options.folder!==undefined?{folder:String(folderId(options.folder))}:{})})});
-      if(action==='use')return out({ok:true,...await useCanvas(c.cfg,args[0],options.session||process.env.SEALSEEK_MEDIA_SESSION_ID||process.env.CODEX_THREAD_ID)});
-      const board=await getCanvas(c.cfg,canvasId(args[0]));
-      if(action==='tasks')return out({ok:true,...canvasSummary(board),tasks:await canvasRequest(c.cfg,'/canvas/tasks?'+new URLSearchParams({canvasId:args[0]}))});
-      const content=JSON.parse(board.content||'{}');return out({ok:true,...canvasSummary(board),elements:content.elements||[],element_count:(content.elements||[]).filter(e=>!e.isDeleted).length});
-    });
-  }
-  if(command==='models'){
-    const {options,args}=parse(rest,[...common,'live','type','resolution','ratio','duration','count']);
-    requireValue(!options.type||['image','video'].includes(options.type),'INVALID_INPUT','Type must be image or video.');
-    const render=async(c,catalog)=>{
-      if(action==='list'){requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');return out({ok:true,model_policy:MODEL_POLICY,source:catalog.source,retrieved_at:catalog.retrieved_at,models:catalog.models.filter(m=>!options.type||m.type===options.type).map(m=>modelContract(m.id,{catalog,tools:c?.tools}))});}
-      requireValue(args.length===1,'INVALID_INPUT','Provide one model ID.');
-      const contract=modelContract(args[0],{catalog,tools:c?.tools});
-      if(action==='show')return out({ok:true,...contract});
-      if(action==='estimate')return out(await estimate(options,contract,c?.cfg));
-      throw new MediaError('UNKNOWN_COMMAND','Use models list, show or estimate.');
-    };
-    if(options.live)return withConnection(options,async c=>render(c,c.catalog));
-    return render(null,CATALOG);
-  }
-  if(command==='dependencies'&&action==='setup'){const {args}=parse(rest,['json']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');const check=setupFFprobe();if(!check.ok)process.exitCode=1;return out({ok:check.ok,ffprobe:check});}
-  if (command === 'doctor' || command === 'capabilities') {
-    const {options,args}=parse(argv.slice(1),[...common,'live']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const manifest={...JSON.parse(await fs.readFile(path.join(SOURCE,'capabilities.json'),'utf8')),...JSON.parse(await fs.readFile(path.join(ROOT,'capabilities.json'),'utf8'))};
-    if (command === 'capabilities' && !options.live) return out({ok:true,version:META.version,policy:'host-configured',model_policy:MODEL_POLICY,manifest,model_catalog:CATALOG,dependencies:{ffprobe:ffprobeStatus()}});
-    let config; try { config=await desktopConfig(options); } catch(e) { process.exitCode=1; return out({ok:false,version:META.version,node:process.version,platform:process.platform,error:publicError(e)}); }
-    const result={ok:true,version:META.version,node:process.version,platform:process.platform,authentication:{present:true,source:config.source,...config.metadata},supported_platform:['darwin','win32'].includes(process.platform),dependencies:{ffprobe:ffprobeStatus()}, ...(command==='capabilities'?{manifest}:{})};
-    if (options.live) return withConnection(options,async c=>{await verifyCredentials(c.cfg);return out({...result,...(command==='capabilities'?{model_catalog:c.catalog}:{}),tools:c.tools.filter(t=>['generate_image','generate_video','create_upload_urls','list_artifacts'].includes(t.name)),transport:'SealSeek Infinite Canvas REST'});});
-    return out(result);
-  }
-  if(command==='video'&&action==='guide'){const {options,args}=parse(rest,[...common,'model','live']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');if(options.live)return withConnection(options,async c=>out({ok:true,...videoGuide(options.model,{catalog:c.catalog,tools:c.tools})}));return out({ok:true,...videoGuide(options.model)});}
-  if(command==='image'&&['edit','replace-text','detect-text'].includes(action)){
-    const {options,args}=parse(rest,[...common,'image','model','prompt','old-text','new-text','box','output','canvas','session','timeout','dry-run','submit','new','placement','archive']);requireValue(!args.length&&options.image,'INVALID_INPUT','Provide --image FILE_OR_URL.');
-    if(action==='detect-text'){
-      requireValue(!options.model,'INVALID_INPUT','Text detection is OCR and has no selectable generation model.');
-      const ref=await reference(options.image);requireValue(options.submit&&!options['dry-run'],'SUBMIT_REQUIRED','Text detection requires --submit.');
-      return withConnection(options,async c=>{const url=await upload(c,ref);out({ok:true,detection:await canvasRequest(c.cfg,'/canvas/image/editTextDetect',{method:'POST',data:{imageUrl:url}})});});
-    }
-    requireValue(action!=='replace-text'||options['old-text']&&options['new-text'],'INVALID_INPUT','Provide --old-text and --new-text.');
-    const operationSchema=action==='edit'?'QuickEditRunParam':'EditTextParam';
-    const allowed=NATIVE_CONTRACT.schemas[operationSchema].properties.model.enum;
-    const selectedModel=options.model||MODEL_POLICY.image.default;
-    assertModelAllowed(selectedModel,'image');
-    requireValue(action==='edit'||allowed.includes(selectedModel),'FEATURE_UNSUPPORTED','The selected model does not support dedicated text replacement. Use reference-image generation with this model, or have the user explicitly select a supported model.',{operation:action,selected_model:selectedModel,allowed_models:allowed,automatic_model_switch:false,paid_action:false});
-    const opts={...options,model:selectedModel,prompt:action==='replace-text'?'Replace the specified image text.':options.prompt,reference:[options.image]};
-    const prepared=await withConnection(options,async c=>prepare('image',opts,c.tools,c.catalog));
-    if(action==='edit'&&!allowed.includes(selectedModel)){
-      if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,operation:'reference-edit',model:prepared.args.model,archive:prepared.archive,placement:prepared.placement,arguments:prepared.args});
-      return out(await submit(prepared,options));
-    }
-    prepared.operation=action==='edit'?'quick-edit':'replace-text';
-    if(action==='replace-text'){
-      prepared.edit_params={oldText:options['old-text'],newText:options['new-text']};
-      if(options.box){const n=options.box.split(',').map(Number);requireValue(n.length===4&&n.every(v=>Number.isFinite(v)&&v>=0&&v<=1)&&n[0]<n[2]&&n[1]<n[3],'INVALID_INPUT','Box must be x1,y1,x2,y2 with increasing coordinates.');Object.assign(prepared.edit_params,{x1:n[0],y1:n[1],x2:n[2],y2:n[3]});}
-    }
-    validateNativeInput(operationSchema,{imageUrl:prepared.args.reference_images[0],model:prepared.args.model,...(action==='edit'?{prompt:prepared.args.prompt}:{edits:[prepared.edit_params]})});
-    if(!options.submit)return out({ok:true,dry_run:true,paid_action:false,operation:prepared.operation,model:prepared.args.model,archive:prepared.archive,placement:prepared.placement,edit_parameters:prepared.edit_params||{prompt:prepared.args.prompt}});
-    return out(await submit(prepared,options));
-  }
-  if (['image','video'].includes(command) && action === 'generate') {
-    const {options,args}=parse(rest,[...common,'prompt','prompt-file','model','reference','reference-person','first-person','last-person','video-reference','audio-reference','audio','video-options','ratio','resolution','size','count','duration','first','last','output','canvas','session','timeout','dry-run','via','submit','new','placement','archive'],['reference','reference-person','video-reference']);
-    requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const request=await withConnection(options,async c=>prepare(command,options,c.tools,c.catalog));
-    if(command==='video'){const dependency=ffprobeStatus();requireValue(dependency.ok,'DEPENDENCY_UNAVAILABLE',dependency.error?.message,{dependency:'ffprobe',paid_action:false});}
-    if (!options.submit) return out({ok:true,dry_run:true,paid_action:false,validation_scope:'live-model-catalog-and-infinite-canvas-contract',provider_acceptance_verified:false,canvas_id:request.canvas_id,canvas_session:request.canvas_session,archive:request.archive,placement:request.placement,canvas_policy:request.canvas_id?'explicit':request.canvas_session?'conversation':'account-default',kind:request.kind,tool:request.tool,arguments:request.args,model_contract:request.model_contract,...(request.reference_review?{reference_review:request.reference_review,reference_people:{references:request.refs.map(r=>r.person||(r.asset?'approved-asset':null)),first:request.first?.person||null,last:request.last?.person||null}}:{}),local_uploads:[...request.refs,request.first,request.last,...request.videoRefs,request.audioRef].filter(r=>r?.file).length,output:request.output});
-    return out(await submit(request,options));
-  }
-  if (['image','video'].includes(command) && action==='upload') {
-    const {options,args}=parse(rest,[...common,'via','submit']); requireValue(args.length===1,'INVALID_INPUT','Provide one media file.');
-    requireValue(options.submit,'SUBMIT_REQUIRED','Uploading requires --submit.');
-    requireValue(!options.via || options.via==='sealseek','INVALID_INPUT','This CLI executes SealSeek media requests.');
-    const ref=await reference(args[0],command); return withConnection(options,async c=>out({ok:true,url:await upload(c,ref)}));
-  }
-  if (command==='task') {
-    const {options,args}=parse(rest,['json','timeout','output']); requireValue(args.length===1,'INVALID_INPUT','Provide one task UUID.');
-    if(action==='sync')return out(await syncJob(args[0]));
-    if (action==='get') return out(summary(await getJob(args[0])));
-    if(action==='resume')return out(await resumeJob(args[0]));
-    if (action==='diagnose'){const job=await getJob(args[0]);return out(diagnose(job,summary(job)));}
-    if (action==='inspect')return out(await inspectTask(await getJob(args[0])));
-    if (action==='wait') return out(await waitJob(args[0],Number(options.timeout || 30)));
-    if (action==='download') {
-      const job=await getJob(args[0]); requireValue(job.result?.urls?.length && options.output,'INVALID_INPUT','Stored URLs and --output are required.');
-      return out({ok:true,task_id:job.id,artifacts:await download(job.result.urls,job.request.kind,path.resolve(options.output),job.id)});
-    }
-  }
-  if (command==='artifacts' && action==='list') {
-    const {options,args}=parse(rest,[...common,'type','page','limit']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    const input={pageNum:Number(options.page || 1),pageSize:Number(options.limit || 10)};
-    requireValue(Number.isInteger(input.pageNum)&&input.pageNum>0&&Number.isInteger(input.pageSize)&&input.pageSize>0&&input.pageSize<=50,'INVALID_INPUT','Page must be positive; limit is 1-50.');
-    if (options.type) input.type=options.type;
-    return withConnection(options,async c=>out({ok:true,artifacts:await call(c,'list_artifacts',input,30000)}));
-  }
-  if (command==='skill') {
-    const {options,args}=parse(rest,['json','agent','path','force']); requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if (action==='source') return out({ok:true,source:SOURCE,name:'sealseek-media',version:META.version,installation:INSTALLATION});
-    if (action==='status') return out(await status(options.agent,options.path));
-    if (['install','update'].includes(action)) return out(await install(options.agent,options));
-  }
-  if (command==='update') {
-    if(action==='auto') {
-      const [mode,...flags]=rest;const {args}=parse(flags,['json']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-      if(mode==='status')return out({ok:true,...await updateStatus()});
-      if(['on','off'].includes(mode))return out(await setAutomatic(mode==='on'));
-      throw new MediaError('INVALID_INPUT','Use update auto status, on or off.');
-    }
-    const {options,args}=parse(rest,['json','yes','agent','path']);requireValue(!args.length,'INVALID_INPUT','Unexpected arguments.');
-    if(action==='check'){const latest=await latestVersion();return out({ok:true,current:META.version,latest,update_available:latest!==META.version});}
-    if(action==='install') {requireValue(options.yes,'PERMISSION_REQUIRED','Package update requires --yes.');return out(await performUpdate({automatic:false,target:resolveUpdateTarget(options)}));}
-  }
-  throw new MediaError('UNKNOWN_COMMAND','Unknown command. Use sealseek-media --help.');
+  // Lifecycle and automatic maintenance are owned by the package dispatcher.
+  process.env[config.env+'_AUTO_UPDATE']='0';process.env[config.env+'_UPDATE_CHECK']='0';
+  await import('./business.mjs');
+ }
 }
-async function entry() {
-  const original=process.argv.slice(2);
-  const selection=['skill','update','_worker','_auth-worker'].includes(original[0])?{argv:original,target:null}:invocationTarget(original,['task','version','--help','-h','help'].includes(original[0])?{}:process.env);
-  const {argv,target}=selection;
-  if(argv[0]&&!['_worker','_auth-worker','update','skill','task','version','--help','-h','help'].includes(argv[0])&&process.env.SEALSEEK_MEDIA_AUTO_UPDATE!=='0') {
-    const result=await performUpdate({target});
-    if(result.skipped==='update_in_progress')throw new MediaError('UPDATE_BUSY','Another CLI is updating this package. Retry after the update finishes; no media request was submitted.');
-    if(!result.ok) {
-      console.error(JSON.stringify({auto_update:result}));
-      if(['SKILL_SYNC_FAILED','LOCAL_EDITS','UNMANAGED_TARGET','UNMANAGED_STATE'].includes(result.error?.code))throw new MediaError(result.error.code,result.error.message,result.error.details);
-    }
-    if(result.skill_sync?.receipts.some(receipt=>receipt.state==='installed'))console.error(JSON.stringify({auto_update:{skill_sync:result.skill_sync,reload_skill:true}}));
-    const installed=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8'));
-    if(installed.version!==META.version) {
-      console.error(JSON.stringify({auto_update:{version:installed.version,updated:true,reload_skill:true}}));
-      const r=spawnSync(process.execPath,[path.join(ROOT,'bin','sealseek-media.mjs'),...original],{stdio:'inherit',env:{...process.env,SEALSEEK_MEDIA_AUTO_UPDATE:'0'},windowsHide:true});
-      process.exitCode=r.status??1;return;
-    }
-  }
-  return main(argv);
-}
-entry().catch(e=>{out({ok:false,error:publicError(e)});process.exitCode=1;});

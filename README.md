@@ -1,174 +1,31 @@
 # @petercjl/sealseek-media-cli
 
-SealSeek image/video generation for Agents with CLI execution, with named adapters for Codex, WorkBuddy and SealSeek and a generic adapter for other hosts. The user configures provider routing in their Agent: this package can serve as a default, backup or task-specific provider.
+通过 SealSeek 执行图像、视频和画板操作，提供认证、参数校验与任务恢复。
 
-Requires Node.js 22+, valid SealSeek media authentication, and network access. Normal media operations read the managed credential profile or current-user `.sealseek/sealseek.json`. Override desktop discovery with `SEALSEEK_MEDIA_DESKTOP_CONFIG`, `SEALSEEK_MEDIA_SERVER`, or `--config`/`--server`. Credentials stay external and never enter task records.
+面向具备所需执行能力的任意 Agent；Node.js 22+。当前 Agent 识别自己的 Skill 目录、能力与注册方式。
 
-Authentication is available with `sealseek-media auth login --json`. The private loopback page uses phone verification-code login through the official PLUGIN channel. Web, desktop and CLI coexistence was verified on macOS with SMS login. CLI authorization has one fixed channel; the provider's CLIENT device field does not select the desktop session channel. Credentials are verified and saved outside the package. Follow `auth status --login-id ID --json`, then `auth status --live --json`. Existing installations authorized through an older channel need one new `auth login`. The desktop application need not run. This uses the provider's existing login flow, not an independent OAuth client.
+## 安装
 
-Expiry metadata comes from the JWT; the service may revoke credentials earlier. `AUTH_REQUIRED`, `AUTH_EXPIRED` and `AUTH_REJECTED` distinguish missing/logout, local expiry and server rejection. `auth logout --yes` backs up plugin credentials and blocks desktop fallback. Add `--desktop` only when authorized to back up and remove the desktop media authentication headers. Credentials, login sessions and backups are never packed. Login is separate from authorization to generate media.
+把下面这句话发送给当前 Agent：
 
-Ask the current Agent: “安装并配置 @petercjl/sealseek-media-cli，供你自己使用。” The Agent installs the package, resolves its own Skill directory, then completes the package-managed Skill installation. Completion requires the actual CLI version and `skill status` reporting `installed=true`, `current=true`; npm alone completes only the CLI phase. Other Agents are unchanged.
+> 请安装 npm 包 @petercjl/sealseek-media-cli。
 
-For updates: “更新 @petercjl/sealseek-media-cli 及其配套 Skill。” The Agent uses the selected-target update interface and verifies both components. A direct npm upgrade or scripts-disabled install requires the same Skill completion handoff. `skill source --json` exposes the canonical source and target contract. Valid unnamed hosts use the generic adapter with their own resolved destination.
+安装同时包含工具、完整 Skill 和独立运行依赖。Agent 核验本地入口、文件与版本，再确认宿主能发现 Skill。
 
-One canonical Skill is bundled and available for normal Agent discovery. Installation does not set provider priority or edit global routing rules. Real generation requires `--submit`; ordinary generation commands default to read-only validation. Legacy `--via sealseek` remains optional for compatibility.
+## 更新
 
-In WorkBuddy, enable the installed Skill if disabled. The Agent may use it according to your configured routing, or you may select `/sealseek-media` manually. Configure a default or backup provider through your Agent's persistent rules; a one-off provider choice remains specific to that task. Runtime evidence covers real image/video generation through Codex on macOS and WorkBuddy discovery, dry-run and existing-task retrieval. Windows package tests pass; Windows real media generation and SealSeek as the calling Agent remain unverified.
+> 请更新 npm 包 @petercjl/sealseek-media-cli。
 
-```bash
-sealseek-media image generate --model gpt-image-2.5-sunburst --prompt "A red ceramic mug on a white background" --resolution 1K --count 1 --output ./media --dry-run --json
-```
+每次更新只处理明确选中的当前 Agent，保留自定义元数据与更新前备份。同版本也会检查和修复 Skill。自动检测默认提示；自动安装需要单独授权。
 
-After explicit authorization, replace `--dry-run` with `--submit`. Query the returned task ID with `task get` or bounded `task wait`. See the Skill and `--help` for reference upload, video, recovery and download. Generation consumes SealSeek credits.
+## 使用
 
-Private local task records live in current-user `.local/state/sealseek-media` or `SEALSEEK_MEDIA_STATE_DIR`. They contain prompts/reference paths; permissions are private. Existing output files are preserved. A lost connection never triggers an automatic generation retry.
+附上所需参考材料，并说明生成目标、模型选择和输出要求。
 
-`skill source/status/install/update` manages copies, recoverable backups and hashes. `update check/install` manages packaged installations; `update install --yes --agent AGENT [--path DIR]` reconciles the selected existing managed Skill even when npm is current. Ordinary commands accept `--agent AGENT [--skill-path DIR]`, or `SEALSEEK_MEDIA_AGENT` / `SEALSEEK_MEDIA_SKILL_PATH`. Explicit flags replace environment selection. Unselected Agent directories are untouched. Git checkouts stay Git-managed. Local edits and customized metadata are preserved or backed up.
+> 请使用 sealseek-media，按所附材料和本次要求生成图片。
 
-Development: `npm ci`, `npm test`, `npm pack --dry-run`. macOS is the initial runtime target. Windows runtime is unverified. Publication uses a separately authorized GitHub Actions Trusted Publishing workflow.
+账号、服务访问与付费生成按各自授权执行。安装不授予服务权限。
 
-## Automatic updates
+## Agent 执行合同
 
-Global npm installations check stable npm `latest` at ordinary task entry, at most once per 24 hours. A newer stable version is installed before the original command runs once through the new CLI. The explicitly selected current Agent’s existing managed Skill is independently checked on each ordinary entry, including same-version, daily-cache and offline-registry cases. Synchronization verifies hashes, creates a backup, preserves customized UI metadata and emits `reload_skill:true` so the Agent reloads the canonical instructions. Custom Agent names and directories use the same contract. Missing targets are reported without automatic creation; unspecified targets cause no Agent-directory scan. Help/version/source and task-following commands do not run automatic maintenance. Active tasks/login workers defer maintenance. Git checkouts and non-global installations retain their existing package manager.
-
-Offline checks and update failures report a diagnostic on stderr and retain the ordinary command path. Local Skill edits, user-owned targets and failed Skill synchronization stop ordinary task execution for review; automatic updates never force Skill replacement. Package backups are stored privately in the state directory under `package-backups`; Skill backups use `skill-backups`. To recover after a failed installation, install the previous exact npm version and synchronize managed Skills, or restore the saved package backup. Failed checks retry after the daily interval; active work and local edits are reconsidered on the next invocation. No daemon runs while the CLI is idle.
-
-```bash
-sealseek-media update auto status --json
-sealseek-media update auto off --json
-sealseek-media update auto on --json
-sealseek-media update install --yes --json
-```
-
-`SEALSEEK_MEDIA_AUTO_UPDATE=0` disables automatic updates for the current process. Automatic installation uses npm with lifecycle scripts disabled and never changes authentication or Agent provider-routing rules.
-
-## Video reference workflow
-
-Use `video guide --model ID --json` and `--reference` when an image supplies visual identity or appearance. `--first`/`--last` express exact frame constraints. Seedance 2.5 supports reference-image input and lacks first/last-frame support in the current provider catalog. If the default or human-selected model cannot satisfy a strict frame requirement, report the limitation and wait for an explicit human model or parameter choice.
-
-After a failure, use `task diagnose ID --json`; sanitized provider errors are retained in task records and ordinary `get/wait` output. Diagnosis never replays generation. `task inspect ID --json` verifies local artifact hashes and obtains actual video specifications through the npm-managed ffprobe dependency. Native request validation does not prove provider acceptance; actual pixel dimensions may differ slightly from the requested ratio.
-
-## Model parameters
-
-```bash
-sealseek-media models list --live --json
-sealseek-media models show MODEL_ID --live --json
-sealseek-media models estimate MODEL_ID --resolution VALUE --json
-```
-
-The CLI calls the Infinite Canvas REST service directly for model discovery, uploads, generation, task polling and history. It ships no MCP client. The live catalog covers 4 image and 2 video models, with model-specific resolutions, ratios, durations and references. Video/audio references, audio generation have explicit inputs where supported. Model-specific advanced parameters use `--video-options JSON_FILE`, validated before submission. Dedicated image quick-edit, text detection and text replacement are also exposed. See the bundled Skill’s `references/models.md` for current limits and verified cases.
-
-Submission saves both the local task UUID and provider task ID before polling. `task resume ID --json` queries the existing remote task after a credential or worker interruption; it never generates again. Historical tasks from previous releases can still be read and their stored outputs downloaded.
-
-Explicit pixel size is rejected: a real native request for 1024x1536 returned 2048x2048. Use catalog ratio/resolution choices and inspect actual output. Camera controls and inpainting masks are not exposed by this CLI. Read-only estimates and catalog validation do not prove provider execution. Provider task records identify the selected model but do not independently attest the served model.
-
-
-Generation defaults to GPT Image 2.5 Sunburst (`gpt-image-2.5-sunburst`) for images and Seedance 2.5 (`doubao-seedance-2-5`) for videos. Image alternatives are Nano Banana Pro (`nano-banana-pro`), GPT Image 2.5 Flare (`gpt-image-2.5-flare`), Nano Banana 2.1 (`nano-banana2.1`) and GPT Image 2.0 (`gpt-image-2`); the video alternative is Seedance 2.0 (`doubao-seedance-2-0`). The Agent passes `--model` only for a model explicitly named by the human; otherwise it omits the flag and uses the default. Task suitability, text rendering, quality, price and recovery do not authorize selecting alternatives. The package allowlist controls offline/live discovery, estimates and generation workers before upload or submission. `image edit` also preserves the default or explicitly selected model. GPT Image and Nano Banana 2.1 edits use reference-image generation; Nano Banana Pro explicitly selected by the human uses quick-edit. Dedicated text replacement requires an explicit supported model; the default returns an unsupported-feature error rather than switching models.
-
-## Nano Banana 2.1 usage
-
-Select Nano Banana 2.1 with its exact model ID `nano-banana2.1`. It supports text-to-image, image references and reference-based editing, with 1K/2K/4K resolution, up to 14 reference images and 1–4 outputs. Ratios include the usual portrait/landscape formats plus 1:4, 4:1, 1:8 and 8:1. Current limits come from live discovery; actual generation is not yet verified.
-
-Copyable Agent requests:
-
-> 用 sealseek-media 的 nano-banana2.1 生成一张白色背景的红色陶瓷杯图片，1:1，1K。
-
-For reference-based generation or editing, attach the source image and state the desired change:
-
-> 用 sealseek-media 的 nano-banana2.1，把所附图片的背景改为浅蓝色，保留主体。
-
-To inspect availability and current pricing before generation:
-
-> 检查 sealseek-media 的 nano-banana2.1 是否可用，并查询 1K 单张价格。
-
-The CLI's `image edit` uses reference-image generation for this model. Dedicated quick-edit and text-replacement endpoints retain their own model limits. See the bundled Skill's [model guide](skills/sealseek-media/references/models.md#nano-banana-21-使用) for execution details.
-
-## Automatic video reference preparation
-
-For Seedance videos, the Agent visually inspects every image reference and supplies one `--reference-person present|absent` per `--reference` in matching order, plus `--first-person` / `--last-person` for supported frame inputs. Only images containing people are sent to asset review and converted to approved material URIs. Product and scene images without people use ordinary image URLs directly. Missing classification stops before upload or review. Approved asset URIs and unchanged person references reuse provider-verified materials. Video references are reviewed as Video assets before generation; local files, HTTPS URLs and approved video asset URIs are accepted. Approved video URIs are status-checked and reused. Review failure stops generation. Dry-run uploads and reviews nothing. Image generation and image editing, including portrait inputs, upload references only for generation and never invoke asset review. This covers CLI preflight; provider-internal generation moderation is separate.
-
-## Canvas operations and placement
-
-The CLI exposes reusable operations. Application Skills choose assets, prompts, canvas identity, project state and layout. In standalone conversations, the suggested workflow is one stable `--session CONVERSATION_ID`, reuse its canvas, and create/bind a new one on request. `--canvas ID` overrides session/default selection. Without either, the CLI uses the host-provided session (`SEALSEEK_MEDIA_SESSION_ID` then `CODEX_THREAD_ID`) or the account default. Bindings are account-scoped. Dry-run creates nothing; unresolved creation or missing bound canvases stop for recovery.
-
-```bash
-sealseek-media canvas create --title "Project assets" --submit --json
-sealseek-media canvas use CANVAS_ID --session CONVERSATION_ID --yes --json
-sealseek-media canvas get CANVAS_ID --json
-sealseek-media canvas add CANVAS_ID --media ./media.json --json
-sealseek-media canvas add CANVAS_ID --media ./media.json --submit --json
-sealseek-media canvas arrange CANVAS_ID --placement ./grid.json --submit --json
-```
-
-Generation and image editing accept `--archive canvas|none` (default `canvas`) and `--placement JSON_FILE`. `none` skips visible element archival; the generation service still requires a canvas ID and keeps its task/history there. It does not mean no service-side canvas activity. `task sync` explicitly archives an existing generated result without regeneration. Canvas save failure preserves outputs and reports `canvas_sync_error`.
-
-Placement JSON uses canvas units:
-
-| Mode | Inputs | Effect |
-|---|---|---|
-| `append` (default) | `columns` default 5, `gap` default 48, `width` default 320, optional `height` | Add new elements in completion/returned-output order; preserve all existing positions. Wrap below occupied bounds when necessary. |
-| `explicit` | `positions`: one `{x,y,width?,height?}` per output; optional fallback `width/height` | Use caller positions exactly, including negative coordinates. Caller owns intentional overlaps and layout quality. |
-| `grid` | `columns`, `gap`, new-element `width/height` | Explicitly reflow all CLI-owned media by submission order when known. Other elements keep their positions; rows begin below them. |
-
-Widths/heights are positive and at most 100000; columns 1–100; gap 0–10000. With no height, derive it from the requested ratio (default 1:1), not independently measured media dimensions. Existing media sizes are preserved by grid arrangement; width/height apply to new elements. `canvas arrange` always performs grid arrangement; its placement file may specify columns/gap. It does not resize existing elements.
-
-Example `placement.json` for two image outputs:
-
-```json
-{"mode":"explicit","positions":[{"x":0,"y":0,"width":600,"height":800},{"x":650,"y":0,"width":600,"height":800}]}
-```
-
-Example `grid.json`:
-
-```json
-{"mode":"grid","columns":5,"gap":48}
-```
-
-Example `media.json` for an existing asset:
-
-```json
-{"id":"product-main-01","kind":"image","urls":["https://example.com/main.jpg"],"placement":{"mode":"explicit","positions":[{"x":0,"y":0,"width":600,"height":800}]},"generationParams":{"prompt":"Caller-provided prompt","model":"gpt-image-2.5-sunburst"}}
-```
-
-`canvas add` accepts `id` (stable operation key, 1–200 characters), `kind` (`image`/`video`), 1–100 HTTP(S) `urls`, optional `ratio`, `placement`, and `generationParams`. Use a distinct id per logical import. Repeating an id/output index does not duplicate or restore deleted elements; different URLs under that key produce `IDEMPOTENCY_CONFLICT`. Replaying explicit placement does not move existing elements. Inspect the existing canvas before choosing a new import id. Metadata uses the supported generation-detail fields; unknown/private fields are discarded. Local assets can first use `image upload FILE --submit --json` or `video upload FILE --submit --json`, then pass the returned URL. Video thumbnails use the Infinite Canvas OSS snapshot convention; arbitrary external video hosts may need media uploaded to SealSeek before import.
-
-For strict left-to-right submission order with concurrent tasks, reserve coordinates in the application and pass explicit positions, or invoke grid arrangement after all tasks complete. Default append prioritizes preservation of existing layout over retrospective reordering. Sequential standalone generation naturally retains generation order.
-
-Canvas writes preserve other content/settings, create private backups and verify saved positions and details. The service exposes no atomic revision check; avoid concurrent manual editing while saving. CLI-local locks serialize writes from the same state directory. Cross-device writers still require coordination. `canvas list`, `canvas get` and `canvas tasks` provide inspection; unknown outcomes require checking saved state before another mutation.
-
-### Rename and move canvas files
-
-The CLI can list projects/folders, filter canvases by folder, rename a canvas and move it to an existing project/folder or back to root. Projects and folders share one ID namespace. Changes preserve canvas IDs, conversation bindings and media; they default to preview, save a private backup on submission and verify the result by readback. See the bundled [CLI contract](skills/sealseek-media/references/cli.md#canvas-file-management) for commands and recovery.
-
-Example Agent requests:
-
-> 用 SealSeek Media 把这个画板重命名为“新品素材”。
-
-> 用 SealSeek Media 把这个画板移到“产品设计”项目中。
-
-> 用 SealSeek Media 把这个画板移回根目录。
-
-### Create and rename projects
-
-SealSeek Media can create projects and rename existing projects. Project names support up to 20 characters. The CLI previews changes, verifies saved names and prevents repeated project creation for the same request. Projects and folders share the same identity; creating a project does not automatically move a canvas into it.
-
-> 用 SealSeek Media 新建一个“新品素材”项目。
-
-> 用 SealSeek Media 把“新品素材”项目重命名为“秋季新品”。
-
-See the bundled [project contract](skills/sealseek-media/references/cli.md#project-management) for the Agent's invocation and recovery rules.
-
-### GPT Image 2.0
-
-GPT Image 2.0 is available as the explicitly selected `gpt-image-2` model. It supports text-to-image, reference images and reference editing. The catalog declares 1K/2K/4K, up to 16 references and 1–4 outputs; query current capabilities before submitting. The default image model remains GPT Image 2.5 Sunburst.
-
-> 用 SealSeek Media 的 GPT Image 2.0 生成一张白色陶瓷杯图片，1:1，1K。
-
-## Generation preparation and timing
-
-The submission path reads the live model catalog during validation and again in the worker; canvas selection only loads credentials. Account identity is checked again before worker uploads. Reference preparation uses at most two concurrent operations and keeps input ordering. Duplicate review identities are processed serially through the private review cache. Preparation failure drains started operations and prevents generation. Image generation never calls asset review; video image-reference review follows the explicit person classifications, while video files are reviewed as Video assets.
-
-Background task tracking defaults to 30 minutes; generation `--timeout` accepts 10–3600 seconds. Individual `task wait` calls remain bounded to 1–60 seconds. `task get/wait/diagnose` exposes `phase`, `remote_status`, `tracking_timeout_seconds`, and client-observed `timing` timestamps/durations. Preparation starts when the local task is created, remote wait includes polling/network/recovery gaps, and finalization includes archival/download. Historical unknown phase durations are null. Resume preserves the remote ID and original submission timing. Client timings do not prove provider queue or computation time.
-
-Video inspection uses an npm-managed platform ffprobe, checked by `doctor --json` and `capabilities --json`. Install with optional dependencies enabled. Advanced deployments can override `SEALSEEK_MEDIA_FFPROBE_BIN` or provide ffprobe in PATH when a packaged binary is unavailable. See THIRD_PARTY_NOTICES.md for binary licensing and supported targets.
+[安装合同](INSTALL.md) · [更新与恢复合同](UPDATE.md)。CLI 通过 `skill source --json` 返回规范来源。安装后的 Skill 使用自身 `scripts/run.mjs`，运行代码与依赖位于自身 `.runtime`。宿主适配记录能力差异与实际测试证据，不作为支持白名单。

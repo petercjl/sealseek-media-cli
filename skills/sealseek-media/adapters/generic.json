@@ -7,8 +7,8 @@
       "capability_id": "media.generate",
       "implementation": {
         "type": "cli",
-        "command": "sealseek-media",
-        "discovery": "PATH; version; doctor --live; capabilities --live"
+        "command": "node SKILL_ROOT/scripts/run.mjs",
+        "discovery": "Resolve this installed Skill directory and its local scripts/run.mjs; verify version, doctor --live and capabilities --live through the target-owned runtime."
       },
       "status": "implemented",
       "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
@@ -30,8 +30,8 @@
       "capability_id": "command.execute",
       "implementation": {
         "type": "cli",
-        "command": "sealseek-media",
-        "discovery": "PATH; version; doctor --live; capabilities --live"
+        "command": "node SKILL_ROOT/scripts/run.mjs",
+        "discovery": "Resolve this installed Skill directory and its local scripts/run.mjs; verify version, doctor --live and capabilities --live through the target-owned runtime."
       },
       "status": "implemented",
       "configuration": "Managed private credential profile or current-user desktop media configuration. Credentials stay external.",
@@ -46,8 +46,8 @@
       "capability_id": "media.authenticate",
       "implementation": {
         "type": "cli",
-        "command": "sealseek-media auth",
-        "discovery": "auth login/status/logout; user opens returned loopback webpage"
+        "command": "node SKILL_ROOT/scripts/run.mjs auth",
+        "discovery": "Resolve this installed Skill directory and its local scripts/run.mjs; verify version, doctor --live and capabilities --live through the target-owned runtime."
       },
       "status": "implemented",
       "features": [
