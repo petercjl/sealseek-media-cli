@@ -34,6 +34,7 @@ concurrency:
 jobs:
   qa:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
         node: [22, 24]

@@ -75,7 +75,14 @@ try {
  const disabled=path.join(b,'.runtime-hidden');fs.renameSync(path.join(b,'.runtime'),disabled);try{invoke(survivor,['version'],1);}finally{fs.renameSync(disabled,path.join(b,'.runtime'));}
  let operation;
  if(config.skill==='sealseek-media'){
-  const r=body(survivor,['image','generate','--prompt','offline reference validation','--dry-run','--json']);assert(r.ok!==false);operation='image generation dry-run without service submission';
+  // A clean CI runner has no desktop login. Bind a synthetic configuration and a
+  // read-only catalog transport; never inherit the developer's real credentials.
+  const fixture=path.join(dir,'offline-desktop.json'),transport=path.join(dir,'offline-catalog.mjs'),catalogHits=path.join(dir,'catalog-reads.txt');
+  fs.writeFileSync(fixture,JSON.stringify({mcp:{servers:{'sealseek-canvas':{url:'http://127.0.0.1:1/mcp',headers:{Authorization:'Bearer offline-fixture'}}}}}),{flag:'wx'});
+  fs.writeFileSync(catalogHits,'',{flag:'wx'});
+  fs.writeFileSync(transport,`import fs from 'node:fs';const c=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(runtime,'src/model-catalog.json'))}));globalThis.fetch=async(input,init={})=>{const u=new URL(String(input));if(u.origin!=='http://127.0.0.1:1'||u.pathname!=='/api/sealseek-infinitecanvas/api/generation-models'||(init.method&&init.method!=='GET'))throw Error('Forbidden network or mutation in isolated dry-run');fs.appendFileSync(${JSON.stringify(catalogHits)},'catalog');return new Response(JSON.stringify({code:200,data:{image:c.models.filter(x=>x.type==='image'),video:c.models.filter(x=>x.type==='video')}}),{headers:{'Content-Type':'application/json'}});};`,{flag:'wx'});
+  const r=JSON.parse(invoke(survivor,['image','generate','--config',fixture,'--prompt','offline reference validation','--dry-run','--json'],0,{NODE_OPTIONS:(process.env.NODE_OPTIONS||'')+' --import '+JSON.stringify(pathToFileURL(transport).href)}));
+  assert.equal(r.dry_run,true);assert.equal(fs.readFileSync(catalogHits,'utf8'),'catalog');operation='image generation dry-run with isolated synthetic credentials and read-only catalog transport';
  }else if(config.skill==='cloud-hug-style-transfer'){
   const input=path.join(dir,'comparison.json');fs.writeFileSync(input,JSON.stringify({run_id:'isolated',row_index:1,top:0,source:{url:'https://example.com/source.png',width:600,height:900},result:{url:'https://example.com/result.png',width:600,height:900}}),{flag:'wx'});
   assert.equal(body(survivor,['canvas','row','--input',input]).batch.media.length,2);operation='comparison canvas row calculation';
