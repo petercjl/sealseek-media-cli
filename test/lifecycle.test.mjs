@@ -68,3 +68,10 @@ test('typed maintenance receipts preserve legacy fields and report actual edit p
  const clean=life.status(r);assert.equal(clean.edited,false);assert.deepEqual(clean.editedFiles,[]);assert.equal(clean.verification.verified,true);assert.equal(clean.recovery.action,'host-discovery');
  fs.appendFileSync(path.join(r.target,'SKILL.md'),'\nlocal edit');const edited=life.status(r);assert.equal(edited.edited,true);assert(edited.editedFiles.includes('SKILL.md'));assert.equal(edited.verification.verified,false);assert.equal(edited.recovery.action,'preserve-local-edits');
 });
+
+test('published Windows legacy receipt paths migrate safely and reject ambiguous paths',t=>{
+ const dir=temp(t),r=target(dir),fixture=()=>{fs.mkdirSync(r.target,{recursive:true});fs.cpSync(life.source,r.target,{recursive:true});const hashes=Object.fromEntries(Object.entries(life.inventory(r.target)).map(([key,value])=>[key.replaceAll('/','\\'),value]));fs.writeFileSync(path.join(r.target,life.config.legacyMarker),JSON.stringify({owner:life.pkg.name,version:'0.6.8',hashes}));};
+ fixture();assert.equal(life.status(r).edited,false);assert.equal(life.install(r).current,true);
+ const second=target(dir,'unsafe');fs.mkdirSync(second.target);const marker=path.join(second.target,life.config.legacyMarker),digest='0'.repeat(64);
+ for(const hashes of [{'a/b':digest,'a\\b':digest},{'..\\escape':digest},{'C:\\outside':digest}]){fs.writeFileSync(marker,JSON.stringify({owner:life.pkg.name,version:'0.6.8',hashes}));assert.throws(()=>life.status(second),{code:'UNMANAGED_STATE'});}
+});

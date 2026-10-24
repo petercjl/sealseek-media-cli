@@ -48,6 +48,14 @@ export function inventory(dir,{skip=[]}={}) {
  }}walk();return result;
 }
 function validHashes(value){return value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>k&&!path.isAbsolute(k)&&!k.includes('\\')&&!k.split('/').some(x=>['.','..',''].includes(x))&&/^[a-f0-9]{64}$/.test(v));}
+function legacyHashes(value){
+ if(!value||typeof value!=='object'||Array.isArray(value))throw fail('UNMANAGED_STATE','Invalid legacy hash record.');
+ const result={};for(const [key,digest]of Object.entries(value)){
+  if(/^(?:[a-zA-Z]:|[/\\])/.test(key))throw fail('UNMANAGED_STATE','Legacy hash paths must be relative.');
+  const canonical=key.replaceAll('\\','/');if(Object.hasOwn(result,canonical))throw fail('UNMANAGED_STATE','Conflicting legacy hash paths.');result[canonical]=digest;
+ }
+ if(!validHashes(result))throw fail('UNMANAGED_STATE','Invalid legacy hash paths or digests.');return result;
+}
 const equal=(a,b)=>JSON.stringify(Object.entries(a).sort())===JSON.stringify(Object.entries(b).sort());
 const canonical=()=>inventory(source);
 export function resolveTarget(options={},env=process.env) {
@@ -96,10 +104,10 @@ function inspectStatus(resolution,{from=resolution.legacySource||root}={}) {
   return {...identity,installed:true,managed,current:false,up_to_date:false,mode:'link',migrationRequired:managed,edited,editedFiles,recordVersion};
  }
  if(!st.isDirectory())return {...identity,installed:true,managed:false,current:false};
- let record;try{record=read(path.join(target,marker));}catch{try{record=read(path.join(target,config.legacyMarker));}catch{}}
+ let record,legacyRecord=false;try{record=read(path.join(target,marker));}catch{try{record=read(path.join(target,config.legacyMarker));legacyRecord=true;}catch{}}
  if(!record&&resolution.legacySource){const baseline=inventory(path.join(resolution.legacySource,'skills',config.skill)),actual=localFiles(target);if(Object.keys(actual).every(k=>k===ui||baseline[k]===actual[k])&&Object.keys(baseline).every(k=>actual[k]!==undefined))record={package:pkg.name,version:read(path.join(resolution.legacySource,'package.json')).version,hashes:baseline};}
  const owned=record?.package===pkg.name||record?.owner===pkg.name;
- const hashes=record?.hashes||record?.files;
+ let hashes=record?.hashes||record?.files;if(owned&&legacyRecord)hashes=legacyHashes(hashes);
  if(owned&&!validHashes(hashes))throw fail('UNMANAGED_STATE','Invalid managed hash record; preserve it for recovery.');
  if(!owned)return {...identity,installed:true,managed:false,current:false};
  const actual=localFiles(target),tracked=Object.keys(hashes).filter(k=>!k.startsWith('.runtime/')&&![marker,config.legacyMarker].includes(k));
